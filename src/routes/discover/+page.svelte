@@ -12,7 +12,7 @@
 		<!-- Welcome Section -->
 		<div class="mb-6 space-y-1">
 			<h1 class="page-heading">
-				Welcome back, {data.profile?.display_name || data.profile?.username}
+				Welcome, {data.profile?.display_name || data.profile?.username}
 			</h1>
 			<p class="text-sm text-muted-foreground">
 				<span class="meta-label">Discover worlds you might love</span>
