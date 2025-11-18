@@ -1,1 +1,0 @@
-import"./CWj6FrbW.js";import{p as c,f as o,D as d,m as n,a as p,b as i,c as m,r as l}from"./OF3EgmvO.js";import{c as f,b as v,d as h}from"./DrwkzclB.js";var _=o('<div data-slot="card-content"><!></div>');function C(t,s){c(s,!0);var a=_(),e=m(a);d(e,()=>s.children),l(a),n(r=>h(a,1,r),[()=>f(v("px-6 pb-6",s.class))]),p(t,a),i()}export{C};
