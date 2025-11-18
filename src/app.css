@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Color tokens mapped to Tailwind palette for the “enchanted library” vibe */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Radii tuned for soft but modern cards */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+}
+
+:root {
+  /* Base “paper” + ink */
+  --background: #f5f3f0; /* soft neutral */
+  --foreground: #111827; /* slate-900 */
+
+  /* Card surfaces */
+  --card: #fdfbf7;
+  --card-foreground: #111827;
+
+  /* Primary: single teal */
+  --primary: #0f766e; /* teal-700 */
+  --primary-foreground: #ecfdf5; /* teal-tinted light */
+
+  /* Secondary: light purple accent */
+  --secondary: #a78bfa; /* violet-400 */
+  --secondary-foreground: #1f2937;
+
+  /* Muted / neutrals */
+  --muted: #e5e7eb; /* stone-200 */
+  --muted-foreground: #4b5563; /* slate-600 */
+
+  /* Accent: reuse secondary to avoid extra hues */
+  --accent: #ede9fe; /* violet-100 */
+  --accent-foreground: #4c1d95; /* violet-900 */
+
+  /* Borders, inputs, rings */
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #5eead4; /* teal-300 */
+}
+
+@variant dark (&:is(.dark *));
+
+.dark {
+  --background: #020617; /* zinc-950 */
+  --foreground: #e5e7eb; /* zinc-200 */
+  --card: #020617;
+  --card-foreground: #e5e7eb;
+
+  --primary: #14b8a6; /* teal-500 */
+  --primary-foreground: #022c22;
+
+  --secondary: #7c3aed; /* violet-600 */
+  --secondary-foreground: #e5e7eb;
+
+  --muted: #020617;
+  --muted-foreground: #9ca3af;
+
+  --accent: #111827; /* neutral accent */
+  --accent-foreground: #e5e7eb;
+
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #22c55e;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+}
+
+html {
+  @apply scroll-smooth;
+}
+
+/* Mobile-first tap targets */
+.tap-target {
+  @apply min-h-[44px] min-w-[44px];
+}
+
+/* Brand wordmark: bookish serif-style treatment */
+.brand-title {
+  @apply font-serif text-lg font-semibold tracking-tight text-foreground;
+}
+
+/* Page title / section heading style */
+.page-heading {
+  @apply font-serif text-2xl font-semibold tracking-tight text-foreground;
+}
+
+/* Label / meta text style */
+.meta-label {
+  @apply text-[0.7rem] font-medium uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+/* Soft “enchanted” card shadow (use only for truly interactive shells if needed) */
+.card-elevated {
+  @apply shadow-[0_18px_45px_-25px_rgba(15,23,42,0.4)];
+}
+
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

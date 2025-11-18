@@ -1,0 +1,1 @@
+import"./CWj6FrbW.js";import{p as d,f as o,D as i,m as c,a as m,b as p,c as n,r as f}from"./OF3EgmvO.js";import{c as l,b as v,d as u}from"./DrwkzclB.js";var h=o('<div data-slot="card-description"><!></div>');function C(t,s){d(s,!0);var a=h(),e=n(a);i(e,()=>s.children),f(a),c(r=>u(a,1,r),[()=>l(v("text-muted-foreground text-sm",s.class))]),m(t,a),p()}export{C};

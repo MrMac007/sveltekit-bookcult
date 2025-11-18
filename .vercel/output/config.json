@@ -1,0 +1,131 @@
+{
+	"version": 3,
+	"routes": [
+		{
+			"src": "/_app/immutable/.+",
+			"headers": {
+				"cache-control": "public, immutable, max-age=31536000"
+			}
+		},
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^/?(?:/__data.json)?$",
+			"dest": "/"
+		},
+		{
+			"src": "^/api/books/enhance/?(?:/__data.json)?$",
+			"dest": "/api/books/enhance"
+		},
+		{
+			"src": "^/api/books/fetch/?(?:/__data.json)?$",
+			"dest": "/api/books/fetch"
+		},
+		{
+			"src": "^/api/books/group-books/?(?:/__data.json)?$",
+			"dest": "/api/books/group-books"
+		},
+		{
+			"src": "^/api/books/search/?(?:/__data.json)?$",
+			"dest": "/api/books/search"
+		},
+		{
+			"src": "^/api/recommendations/?(?:/__data.json)?$",
+			"dest": "/api/recommendations"
+		},
+		{
+			"src": "^/api/recommendations/track/?(?:/__data.json)?$",
+			"dest": "/api/recommendations/track"
+		},
+		{
+			"src": "^/auth/callback/?(?:/__data.json)?$",
+			"dest": "/auth/callback"
+		},
+		{
+			"src": "^/auth/signout/?(?:/__data.json)?$",
+			"dest": "/auth/signout"
+		},
+		{
+			"src": "^/book/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/book/[bookId]"
+		},
+		{
+			"src": "^/completed/?(?:/__data.json)?$",
+			"dest": "/completed"
+		},
+		{
+			"src": "^/currently-reading/?(?:/__data.json)?$",
+			"dest": "/currently-reading"
+		},
+		{
+			"src": "^/discover/?(?:/__data.json)?$",
+			"dest": "/discover"
+		},
+		{
+			"src": "^/feed/?(?:/__data.json)?$",
+			"dest": "/feed"
+		},
+		{
+			"src": "^/groups/?(?:/__data.json)?$",
+			"dest": "/groups"
+		},
+		{
+			"src": "^/groups/create/?(?:/__data.json)?$",
+			"dest": "/groups/create"
+		},
+		{
+			"src": "^/groups/join/?(?:/__data.json)?$",
+			"dest": "/groups/join"
+		},
+		{
+			"src": "^/groups/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/groups/[groupId]"
+		},
+		{
+			"src": "^/groups/([^/]+?)/reading-list/?(?:/__data.json)?$",
+			"dest": "/groups/[groupId]/reading-list"
+		},
+		{
+			"src": "^/login/?(?:/__data.json)?$",
+			"dest": "/(auth)/login"
+		},
+		{
+			"src": "^/my-books/?(?:/__data.json)?$",
+			"dest": "/my-books"
+		},
+		{
+			"src": "^/profile/?(?:/__data.json)?$",
+			"dest": "/profile"
+		},
+		{
+			"src": "^/profile/followers/?(?:/__data.json)?$",
+			"dest": "/profile/followers"
+		},
+		{
+			"src": "^/profile/following/?(?:/__data.json)?$",
+			"dest": "/profile/following"
+		},
+		{
+			"src": "^/rate/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/rate/[bookId]"
+		},
+		{
+			"src": "^/signup/?(?:/__data.json)?$",
+			"dest": "/(auth)/signup"
+		},
+		{
+			"src": "^/users/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/users/[userId]"
+		},
+		{
+			"src": "^/wishlist/?(?:/__data.json)?$",
+			"dest": "/wishlist"
+		},
+		{
+			"src": "/.*",
+			"dest": "/![-]/catchall"
+		}
+	],
+	"overrides": {}
+}
