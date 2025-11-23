@@ -47,6 +47,7 @@ export const actions: Actions = {
         .single()
 
       if (groupError || !group) {
+        console.error('Group lookup error:', groupError)
         return fail(404, { error: 'Invalid invite code' })
       }
 
@@ -70,7 +71,10 @@ export const actions: Actions = {
         role: 'member',
       })
 
-      if (memberError) throw memberError
+      if (memberError) {
+        console.error('Member insert error:', memberError)
+        throw memberError
+      }
 
       // Redirect to group page
       throw redirect(303, `/groups/${group.id}`)

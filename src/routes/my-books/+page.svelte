@@ -3,6 +3,7 @@
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import BookCard from '$lib/components/books/book-card.svelte';
 	import { StarRating } from '$lib/components/ui/star-rating';
+	import { Button } from '$lib/components/ui/button';
 	import { BookMarked, BookOpen, BookCheck } from 'lucide-svelte';
 	import type { PageData } from './$types';
 
