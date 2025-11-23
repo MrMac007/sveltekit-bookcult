@@ -11,9 +11,8 @@
 </script>
 
 <AppLayout title={data.group.name} showLogo={false}>
-	<div class="bg-muted/40">
-		<div class="mx-auto max-w-5xl px-4 py-6">
-			<div class="space-y-6">
+	<div class="mx-auto max-w-5xl px-4 py-6">
+		<div class="space-y-6">
 				<GroupHeader group={data.group} />
 
 				<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -45,7 +44,6 @@
 						/>
 					</div>
 				</div>
-			</div>
 		</div>
 	</div>
 </AppLayout>

@@ -37,29 +37,29 @@
 		</div>
 
 		<!-- Stats -->
-		<div class="mb-8 grid grid-cols-3 gap-4">
-			<a href="/wishlist">
-				<Card class="cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="pt-6 text-center">
-						<BookOpen class="mx-auto mb-2 h-6 w-6 text-primary" />
+		<div class="mb-8 grid grid-cols-3 items-stretch gap-3">
+			<a href="/wishlist" class="flex">
+				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
+					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
+						<BookOpen class="mb-2 h-6 w-6 text-primary" />
 						<p class="page-heading text-xl">{data.wishlistCount}</p>
 						<p class="meta-label mt-1">Want to Read</p>
 					</CardContent>
 				</Card>
 			</a>
-			<a href="/currently-reading">
-				<Card class="cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="pt-6 text-center">
-						<BookOpen class="mx-auto mb-2 h-6 w-6 text-orange-500" />
+			<a href="/currently-reading" class="flex">
+				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
+					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
+						<BookOpen class="mb-2 h-6 w-6 text-orange-500" />
 						<p class="page-heading text-xl">{data.currentlyReadingCount}</p>
 						<p class="meta-label mt-1">Currently Reading</p>
 					</CardContent>
 				</Card>
 			</a>
-			<a href="/completed">
-				<Card class="cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="pt-6 text-center">
-						<BookCheck class="mx-auto mb-2 h-6 w-6 text-primary" />
+			<a href="/completed" class="flex">
+				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
+					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
+						<BookCheck class="mb-2 h-6 w-6 text-primary" />
 						<p class="page-heading text-xl">{data.completedCount}</p>
 						<p class="meta-label mt-1">Completed</p>
 					</CardContent>
