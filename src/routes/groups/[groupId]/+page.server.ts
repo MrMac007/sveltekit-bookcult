@@ -161,10 +161,6 @@ export const load: PageServerLoad = async (event) => {
       )
     `
     )
-    .in(
-      'user_id',
-      members?.map((m: any) => m.profiles.id) || []
-    )
     .in('book_id', readingListBookIds.length > 0 ? readingListBookIds : ['']) // Filter by reading list books
     .order('created_at', { ascending: false })
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { StarRating } from '$lib/components/ui/star-rating';
+	import { Button } from '$lib/components/ui/button';
 	import { BookMarked } from 'lucide-svelte';
 
 	interface Rating {
@@ -25,6 +26,9 @@
 	}
 
 	let { ratings, currentUserId }: Props = $props();
+
+	type SortOption = 'most-rated' | 'highest-rating' | 'lowest-rating' | 'alphabetical';
+	let sortBy = $state<SortOption>('most-rated');
 
 	// Group ratings by book
 	const ratingsByBook = $derived.by(() => {
@@ -62,8 +66,20 @@
 			group.averageRating = sum / group.ratings.length;
 		});
 
-		// Convert to array and sort by number of ratings (most read first)
-		return Array.from(grouped.values()).sort((a, b) => b.ratings.length - a.ratings.length);
+		// Convert to array and sort based on selected option
+		const booksArray = Array.from(grouped.values());
+
+		switch (sortBy) {
+			case 'highest-rating':
+				return booksArray.sort((a, b) => b.averageRating - a.averageRating);
+			case 'lowest-rating':
+				return booksArray.sort((a, b) => a.averageRating - b.averageRating);
+			case 'alphabetical':
+				return booksArray.sort((a, b) => a.title.localeCompare(b.title));
+			case 'most-rated':
+			default:
+				return booksArray.sort((a, b) => b.ratings.length - a.ratings.length);
+		}
 	});
 </script>
 
@@ -74,6 +90,41 @@
 			<p class="text-sm text-muted-foreground">
 				{ratingsByBook.length} {ratingsByBook.length === 1 ? 'book' : 'books'} rated
 			</p>
+		</div>
+
+		<!-- Sorting Controls -->
+		<div class="flex flex-wrap items-center gap-2">
+			<span class="text-sm text-muted-foreground">Sort by:</span>
+			<div class="flex flex-wrap gap-2">
+				<Button
+					variant={sortBy === 'most-rated' ? 'default' : 'outline'}
+					size="sm"
+					onclick={() => (sortBy = 'most-rated')}
+				>
+					Most Rated
+				</Button>
+				<Button
+					variant={sortBy === 'highest-rating' ? 'default' : 'outline'}
+					size="sm"
+					onclick={() => (sortBy = 'highest-rating')}
+				>
+					Highest Rating
+				</Button>
+				<Button
+					variant={sortBy === 'lowest-rating' ? 'default' : 'outline'}
+					size="sm"
+					onclick={() => (sortBy = 'lowest-rating')}
+				>
+					Lowest Rating
+				</Button>
+				<Button
+					variant={sortBy === 'alphabetical' ? 'default' : 'outline'}
+					size="sm"
+					onclick={() => (sortBy = 'alphabetical')}
+				>
+					A-Z
+				</Button>
+			</div>
 		</div>
 
 		<div class="space-y-4">
