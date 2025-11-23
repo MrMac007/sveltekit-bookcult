@@ -81,7 +81,7 @@
 				<div class="flex justify-center">
 					<StarRating
 						value={rating}
-						onChange={(newRating) => rating = newRating}
+						onchange={(newRating) => rating = newRating}
 						size="lg"
 					/>
 				</div>
