@@ -35,9 +35,9 @@
 </script>
 
 <nav
-	class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-gradient-to-t from-background/95 via-background/90 to-background/80 backdrop-blur-xl safe-bottom"
+	class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-gradient-to-t from-background/95 via-background/90 to-background/80 backdrop-blur-xl"
 >
-	<div class="mx-auto flex h-16 max-w-lg items-center justify-around px-4">
+	<div class="mx-auto flex h-16 max-w-lg items-center justify-around px-4 safe-bottom">
 		{#each navItems as item}
 			{@const isActive = pathname === item.href}
 			{@const Icon = item.icon}
