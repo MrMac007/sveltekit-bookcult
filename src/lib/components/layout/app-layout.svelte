@@ -14,7 +14,7 @@
 
 <div class="flex min-h-screen flex-col bg-background">
 	<AppHeader {title} {showLogo} />
-	<main class="flex-1 pb-20 pt-4">
+	<main class="flex-1 pb-20 pt-4" style="padding-bottom: calc(5rem + env(safe-area-inset-bottom));">
 		{@render children()}
 	</main>
 	<BottomNav />
