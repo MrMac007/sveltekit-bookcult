@@ -2,9 +2,12 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import { BookMarked, Star, Sparkles, Loader2, Tag, Calendar } from 'lucide-svelte';
+	import { Star, Sparkles, Loader2, Tag, Calendar } from 'lucide-svelte';
 	import { StarRating } from '$lib/components/ui/star-rating';
 	import BookActions from './book-actions.svelte';
+	import BookCover from '$lib/components/ui/book-cover.svelte';
+	import StatCard from '$lib/components/ui/stat-card.svelte';
+	import { formatDate } from '$lib/utils/date';
 	import type { Database } from '$lib/types/database';
 
 	type Book = Database['public']['Tables']['books']['Row'];
@@ -33,6 +36,7 @@
 		userRating?: UserRating | null;
 		groupRatings?: GroupRating[];
 		showActions?: boolean;
+		showTitle?: boolean;
 		class?: string;
 	}
 
@@ -44,19 +48,11 @@
 		userRating = null,
 		groupRatings = [],
 		showActions = true,
+		showTitle = true,
 		class: className = ''
 	}: Props = $props();
 
 	let isEnhancing = $state(false);
-
-	const formatDate = (dateString?: string) => {
-		if (!dateString) return '';
-		return new Date(dateString).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	};
 
 	async function handleEnhance() {
 		if (!book.id || isEnhancing) return;
@@ -88,24 +84,20 @@
 	<!-- Book Header -->
 	<div class="mb-8 text-center">
 		<!-- Book Cover -->
-		<div class="relative mx-auto mb-4 h-60 w-40 overflow-hidden rounded-lg bg-muted">
-			{#if book.cover_url}
-				<img
-					src={book.cover_url}
-					alt="Cover of {book.title}"
-					class="h-full w-full object-cover"
-				/>
-			{:else}
-				<div class="flex h-full w-full items-center justify-center">
-					<BookMarked class="h-16 w-16 text-muted-foreground" />
-				</div>
-			{/if}
+		<div class="mx-auto mb-4">
+			<BookCover coverUrl={book.cover_url} title={book.title} size="lg" clickable={false} />
 		</div>
 
 		<!-- Title and Author -->
-		<h1 class="page-heading text-center text-2xl">{book.title}</h1>
-		{#if book.authors && book.authors.length > 0}
-			<p class="mt-2 text-lg text-muted-foreground">
+		{#if showTitle}
+			<h1 class="page-heading text-center text-xl sm:text-2xl">{book.title}</h1>
+			{#if book.authors && book.authors.length > 0}
+				<p class="mt-2 text-base sm:text-lg text-muted-foreground">
+					by {book.authors.join(', ')}
+				</p>
+			{/if}
+		{:else if book.authors && book.authors.length > 0}
+			<p class="text-base sm:text-lg text-muted-foreground">
 				by {book.authors.join(', ')}
 			</p>
 		{/if}
@@ -125,11 +117,10 @@
 	</div>
 
 	<!-- Stats Grid -->
-	<div class="mb-6 grid grid-cols-3 gap-4">
+	<div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
 		<!-- Categories Card -->
-		<Card class="transition-all hover:shadow-md">
-			<CardContent class="pt-6 text-center">
-				<Tag class="mx-auto mb-2 h-6 w-6 text-primary" />
+		<StatCard icon={Tag} value="" label="">
+			{#snippet children()}
 				{#if book.categories && book.categories.length > 0}
 					<div class="mb-1 flex flex-wrap items-center justify-center gap-1">
 						{#each book.categories as category}
@@ -137,36 +128,24 @@
 						{/each}
 					</div>
 				{:else}
-					<p class="text-2xl font-bold text-muted-foreground">—</p>
+					<p class="text-xl sm:text-2xl font-bold text-muted-foreground">—</p>
 				{/if}
-			</CardContent>
-		</Card>
+			{/snippet}
+		</StatCard>
 
 		<!-- Published Year Card -->
-		<Card class="transition-all hover:shadow-md">
-			<CardContent class="pt-6 text-center">
-				<Calendar class="mx-auto mb-2 h-6 w-6 text-primary" />
-				<p class="page-heading text-xl">
-					{#if book.published_date}
-						{new Date(book.published_date).getFullYear()}
-					{:else}
-						—
-					{/if}
-				</p>
-				<p class="meta-label mt-1">Published</p>
-			</CardContent>
-		</Card>
+		<StatCard
+			icon={Calendar}
+			value={book.published_date ? new Date(book.published_date).getFullYear() : '—'}
+			label="Published"
+		/>
 
 		<!-- Ratings Card -->
-		<Card class="transition-all hover:shadow-md">
-			<CardContent class="pt-6 text-center">
-				<Star class="mx-auto mb-2 h-6 w-6 text-primary" />
-				<p class="page-heading text-xl">
-					{userRating ? groupRatings.length + 1 : groupRatings.length}
-				</p>
-				<p class="meta-label mt-1">Ratings</p>
-			</CardContent>
-		</Card>
+		<StatCard
+			icon={Star}
+			value={userRating ? groupRatings.length + 1 : groupRatings.length}
+			label="Ratings"
+		/>
 	</div>
 
 	<!-- Action Buttons -->

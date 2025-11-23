@@ -16,6 +16,7 @@
 			userRating={data.userRating}
 			groupRatings={data.groupRatings}
 			showActions={true}
+			showTitle={false}
 		/>
 	</div>
 </AppLayout>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
-	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import StatCard from '$lib/components/ui/stat-card.svelte';
 	import { User, BookCheck, BookOpen, LogOut } from 'lucide-svelte';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -37,34 +37,15 @@
 		</div>
 
 		<!-- Stats -->
-		<div class="mb-8 grid grid-cols-3 items-stretch gap-3">
-			<a href="/wishlist" class="flex">
-				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
-						<BookOpen class="mb-2 h-6 w-6 text-primary" />
-						<p class="page-heading text-xl">{data.wishlistCount}</p>
-						<p class="meta-label mt-1">Want to Read</p>
-					</CardContent>
-				</Card>
-			</a>
-			<a href="/currently-reading" class="flex">
-				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
-						<BookOpen class="mb-2 h-6 w-6 text-orange-500" />
-						<p class="page-heading text-xl">{data.currentlyReadingCount}</p>
-						<p class="meta-label mt-1">Currently Reading</p>
-					</CardContent>
-				</Card>
-			</a>
-			<a href="/completed" class="flex">
-				<Card class="w-full cursor-pointer transition-all hover:shadow-md">
-					<CardContent class="flex h-full flex-col items-center justify-between p-4 text-center">
-						<BookCheck class="mb-2 h-6 w-6 text-primary" />
-						<p class="page-heading text-xl">{data.completedCount}</p>
-						<p class="meta-label mt-1">Completed</p>
-					</CardContent>
-				</Card>
-			</a>
+		<div class="mb-8 grid grid-cols-1 sm:grid-cols-3 items-stretch gap-3">
+			<StatCard icon={BookOpen} value={data.wishlistCount} label="Want to Read" href="/wishlist" />
+			<StatCard
+				icon={BookOpen}
+				value={data.currentlyReadingCount}
+				label="Currently Reading"
+				href="/currently-reading"
+			/>
+			<StatCard icon={BookCheck} value={data.completedCount} label="Completed" href="/completed" />
 		</div>
 
 

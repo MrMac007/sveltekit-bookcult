@@ -3,7 +3,9 @@
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import BookCard from '$lib/components/books/book-card.svelte';
 	import { StarRating } from '$lib/components/ui/star-rating';
-	import { Button } from '$lib/components/ui/button';
+	import BookCover from '$lib/components/ui/book-cover.svelte';
+	import EmptyState from '$lib/components/ui/empty-state.svelte';
+	import { formatDate } from '$lib/utils/date';
 	import { BookMarked, BookOpen, BookCheck } from 'lucide-svelte';
 	import type { PageData } from './$types';
 
@@ -13,7 +15,7 @@
 <AppLayout title="My Books">
 	<div class="mx-auto max-w-5xl px-4 py-6">
 		<Tabs value="wishlist" class="w-full">
-			<TabsList class="grid w-full grid-cols-3">
+			<TabsList class="grid w-full grid-cols-3 text-xs sm:text-sm">
 				<TabsTrigger value="wishlist">
 					Wishlist ({data.wishlistBooks.length})
 				</TabsTrigger>
@@ -48,16 +50,13 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="flex flex-col items-center justify-center py-16 text-center">
-						<BookMarked class="h-16 w-16 text-muted-foreground mb-4" />
-						<h3 class="text-lg font-semibold mb-2">No books in wishlist</h3>
-						<p class="text-muted-foreground mb-6">
-							Add books you want to read
-						</p>
-						<Button href="/discover" size="sm">
-							Discover Books
-						</Button>
-					</div>
+					<EmptyState
+						icon={BookMarked}
+						title="No books in wishlist"
+						message="Add books you want to read"
+						actionText="Discover Books"
+						actionHref="/discover"
+					/>
 				{/if}
 			</TabsContent>
 
@@ -83,13 +82,11 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="flex flex-col items-center justify-center py-16 text-center">
-						<BookOpen class="h-16 w-16 text-muted-foreground mb-4" />
-						<h3 class="text-lg font-semibold mb-2">Not currently reading</h3>
-						<p class="text-muted-foreground mb-6">
-							Start reading a book from your wishlist
-						</p>
-					</div>
+					<EmptyState
+						icon={BookOpen}
+						title="Not currently reading"
+						message="Start reading a book from your wishlist"
+					/>
 				{/if}
 			</TabsContent>
 
@@ -99,19 +96,14 @@
 						{#each data.completedBooks as item}
 							<div class="rounded-lg border p-4">
 								<div class="flex gap-4">
-									<a href="/book/{item.books.id}" class="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-md bg-muted hover:opacity-80">
-										{#if item.books.cover_url}
-											<img
-												src={item.books.cover_url}
-												alt={item.books.title}
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center">
-												<BookMarked class="h-12 w-12 text-muted-foreground" />
-											</div>
-										{/if}
-									</a>
+									<div class="flex-shrink-0">
+										<BookCover
+											coverUrl={item.books.cover_url}
+											title={item.books.title}
+											bookId={item.books.id}
+											size="md"
+										/>
+									</div>
 									<div class="flex-1">
 										<a href="/book/{item.books.id}" class="block hover:opacity-80">
 											<h3 class="font-semibold line-clamp-2">{item.books.title}</h3>
@@ -141,7 +133,7 @@
 											</div>
 										{/if}
 										<p class="mt-2 text-xs text-muted-foreground">
-											Completed on {new Date(item.completed_at).toLocaleDateString()}
+											Completed on {formatDate(item.completed_at)}
 										</p>
 									</div>
 								</div>
@@ -149,13 +141,11 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="flex flex-col items-center justify-center py-16 text-center">
-						<BookCheck class="h-16 w-16 text-muted-foreground mb-4" />
-						<h3 class="text-lg font-semibold mb-2">No completed books yet</h3>
-						<p class="text-muted-foreground mb-6">
-							Mark books as complete to track your progress
-						</p>
-					</div>
+					<EmptyState
+						icon={BookCheck}
+						title="No completed books yet"
+						message="Mark books as complete to track your progress"
+					/>
 				{/if}
 			</TabsContent>
 		</Tabs>

@@ -2,6 +2,8 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { BookMarked, BookCheck } from 'lucide-svelte';
+	import BookCover from '$lib/components/ui/book-cover.svelte';
+	import BookMetadata from '$lib/components/ui/book-metadata.svelte';
 	import type { BookCardData } from '$lib/types/api';
 
 	interface Props {
@@ -25,18 +27,15 @@
 	<CardContent class="p-4">
 		<div class="flex gap-4">
 			<!-- Book Cover - Clickable -->
-			<a
-				href="/book/{book.id}"
-				class="relative h-40 w-28 flex-shrink-0 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/70 transition-transform hover:-translate-y-[1px]"
-			>
-				{#if book.cover_url}
-					<img src={book.cover_url} alt="Cover of {book.title}" class="h-full w-full object-cover" />
-				{:else}
-					<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-50 via-emerald-100/80 to-rose-50">
-						<BookMarked class="h-12 w-12 text-muted-foreground" />
-					</div>
-				{/if}
-			</a>
+			<div class="flex-shrink-0">
+				<BookCover
+					coverUrl={book.cover_url}
+					title={book.title}
+					bookId={book.id}
+					size="md"
+					class="ring-1 ring-border/70"
+				/>
+			</div>
 
 			<!-- Book Details -->
 			<div class="flex flex-1 flex-col">
@@ -57,18 +56,8 @@
 				{/if}
 
 				<!-- Metadata -->
-				<div class="mt-auto flex flex-wrap items-center gap-2 pt-3 text-xs text-muted-foreground">
-					{#if book.published_date}
-						<span class="meta-label text-[0.65rem] normal-case">
-							{new Date(book.published_date).getFullYear()}
-						</span>
-					{/if}
-					{#if book.page_count && book.published_date}
-						<span>•</span>
-					{/if}
-					{#if book.page_count}
-						<span class="text-[0.7rem]">{book.page_count} pages</span>
-					{/if}
+				<div class="mt-auto pt-3">
+					<BookMetadata publishedDate={book.published_date} pageCount={book.page_count} />
 				</div>
 
 				<!-- Actions -->
