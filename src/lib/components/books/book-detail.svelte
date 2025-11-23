@@ -84,7 +84,7 @@
 	<!-- Book Header -->
 	<div class="mb-8 text-center">
 		<!-- Book Cover -->
-		<div class="mx-auto mb-4">
+		<div class="mx-auto mb-4 flex justify-center">
 			<BookCover coverUrl={book.cover_url} title={book.title} size="lg" clickable={false} />
 		</div>
 

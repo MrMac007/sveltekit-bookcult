@@ -54,7 +54,8 @@
 		}
 	});
 
-	const containerClass = layout === 'vertical' ? 'flex flex-col gap-3' : 'flex gap-3';
+	const containerClass =
+		layout === 'vertical' ? 'flex flex-col gap-3' : 'flex flex-col sm:flex-row gap-2 sm:gap-3';
 </script>
 
 <div class="{containerClass} {className}">
@@ -63,7 +64,7 @@
 		<form
 			method="POST"
 			action={optimisticWishlist ? '?/removeFromWishlist' : '?/addToWishlist'}
-			class={layout === 'vertical' ? 'w-full' : 'flex-1'}
+			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
 			use:enhance={() => {
 				isSubmitting = true;
 				optimisticWishlist = !optimisticWishlist;
@@ -82,13 +83,15 @@
 				type="submit"
 				variant={optimisticWishlist ? 'outline' : 'default'}
 				disabled={isSubmitting}
-				class="w-full"
+				class="w-full text-xs sm:text-sm"
 			>
+				<BookMarked class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
 				{#if optimisticWishlist}
-					Remove from Wishlist
+					<span class="hidden sm:inline">Remove from Wishlist</span>
+					<span class="sm:hidden">Remove</span>
 				{:else}
-					<BookMarked class="mr-2 h-4 w-4" />
-					Add to Wishlist
+					<span class="hidden sm:inline">Add to Wishlist</span>
+					<span class="sm:hidden">Wishlist</span>
 				{/if}
 			</Button>
 		</form>
@@ -97,7 +100,7 @@
 		<form
 			method="POST"
 			action={optimisticReading ? '?/stopReading' : '?/startReading'}
-			class={layout === 'vertical' ? 'w-full' : 'flex-1'}
+			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
 			use:enhance={() => {
 				isSubmitting = true;
 				optimisticReading = !optimisticReading;
@@ -116,14 +119,15 @@
 				type="submit"
 				variant="outline"
 				disabled={isSubmitting}
-				class="w-full"
+				class="w-full text-xs sm:text-sm"
 			>
 				{#if optimisticReading}
-					<Check class="mr-2 h-4 w-4" />
+					<Check class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
 					Reading
 				{:else}
-					<BookOpen class="mr-2 h-4 w-4" />
-					Start Reading
+					<BookOpen class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+					<span class="hidden sm:inline">Start Reading</span>
+					<span class="sm:hidden">Reading</span>
 				{/if}
 			</Button>
 		</form>
@@ -134,7 +138,7 @@
 		<form
 			method="POST"
 			action="?/markComplete"
-			class={layout === 'vertical' ? 'w-full' : 'flex-1'}
+			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
 			use:enhance={() => {
 				isSubmitting = true;
 				optimisticCompleted = true;
@@ -153,10 +157,15 @@
 				type="submit"
 				variant={optimisticCompleted ? 'secondary' : 'outline'}
 				disabled={isSubmitting || optimisticCompleted}
-				class="w-full"
+				class="w-full text-xs sm:text-sm"
 			>
-				<BookCheck class="mr-2 h-4 w-4" />
-				{optimisticCompleted ? 'Completed' : 'Mark Complete'}
+				<BookCheck class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+				{#if optimisticCompleted}
+					Completed
+				{:else}
+					<span class="hidden sm:inline">Mark Complete</span>
+					<span class="sm:hidden">Complete</span>
+				{/if}
 			</Button>
 		</form>
 	{/if}

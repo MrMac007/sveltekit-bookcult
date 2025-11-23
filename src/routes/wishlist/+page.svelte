@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import BookCard from '$lib/components/books/book-card.svelte';
+	import EmptyState from '$lib/components/ui/empty-state.svelte';
 	import { BookMarked } from 'lucide-svelte';
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
@@ -86,16 +87,13 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="flex flex-col items-center justify-center py-16 text-center">
-				<BookMarked class="h-16 w-16 text-muted-foreground mb-4" />
-				<h3 class="text-lg font-semibold mb-2">Your wishlist is empty</h3>
-				<p class="text-muted-foreground mb-6">
-					Start adding books you want to read
-				</p>
-				<Button href="/discover" size="sm">
-					Discover Books
-				</Button>
-			</div>
+			<EmptyState
+				icon={BookMarked}
+				title="Your wishlist is empty"
+				message="Start adding books you want to read"
+				actionText="Discover Books"
+				actionHref="/discover"
+			/>
 		{/if}
 	</div>
 </AppLayout>
