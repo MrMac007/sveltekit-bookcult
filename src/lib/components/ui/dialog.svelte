@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { Dialog as DialogPrimitive } from 'bits-ui';
+	import type { Snippet } from 'svelte';
 
-	type Props = DialogPrimitive.Props;
+	type Props = DialogPrimitive.Props & {
+		children?: Snippet;
+	};
 
-	let { ...restProps }: Props = $props();
+	let { children, ...restProps }: Props = $props();
 </script>
 
 <DialogPrimitive.Root data-slot="dialog" {...restProps}>

@@ -2,16 +2,18 @@
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import { cn } from '$lib/utils';
 	import { X } from 'lucide-svelte';
+	import type { Snippet } from 'svelte';
 
 	type Props = DialogPrimitive.ContentProps & {
 		class?: string;
 		showCloseButton?: boolean;
+		children?: Snippet;
 	};
 
-	let { class: className, showCloseButton = true, ...restProps }: Props = $props();
+	let { class: className, showCloseButton = true, children, ...restProps }: Props = $props();
 </script>
 
-<DialogPrimitive.Portal data-slot="dialog-portal">
+<DialogPrimitive.Portal>
 	<DialogPrimitive.Overlay
 		data-slot="dialog-overlay"
 		class="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50"

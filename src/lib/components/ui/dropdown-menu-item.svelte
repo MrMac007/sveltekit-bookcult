@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui';
 	import { cn } from '$lib/utils';
+	import type { Snippet } from 'svelte';
 
 	type Props = DropdownMenuPrimitive.ItemProps & {
 		class?: string;
 		inset?: boolean;
 		variant?: 'default' | 'destructive';
+		children?: Snippet;
 	};
 
-	let { class: className, inset, variant = 'default', ...restProps }: Props = $props();
+	let { class: className, inset, variant = 'default', children, ...restProps }: Props = $props();
 </script>
 
 <DropdownMenuPrimitive.Item

@@ -2,12 +2,19 @@
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import StatCard from '$lib/components/ui/stat-card.svelte';
-	import { User, BookCheck, BookOpen, LogOut } from 'lucide-svelte';
+	import { User, BookCheck, BookOpen, BookMarked, LogOut, Settings } from 'lucide-svelte';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
+	import Dialog from '$lib/components/ui/dialog.svelte';
+	import DialogContent from '$lib/components/ui/dialog-content.svelte';
+	import DialogHeader from '$lib/components/ui/dialog-header.svelte';
+	import DialogTitle from '$lib/components/ui/dialog-title.svelte';
+	import DialogDescription from '$lib/components/ui/dialog-description.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	
+	let editDialogOpen = $state(false);
 </script>
 
 <AppLayout title="Profile">
@@ -37,8 +44,8 @@
 		</div>
 
 		<!-- Stats -->
-		<div class="mb-8 grid grid-cols-1 sm:grid-cols-3 items-stretch gap-3">
-			<StatCard icon={BookOpen} value={data.wishlistCount} label="Want to Read" href="/wishlist" />
+		<div class="mb-8 grid grid-cols-3 items-stretch gap-2 sm:gap-3">
+			<StatCard icon={BookMarked} value={data.wishlistCount} label="Want to Read" href="/wishlist" />
 			<StatCard
 				icon={BookOpen}
 				value={data.currentlyReadingCount}
@@ -48,9 +55,17 @@
 			<StatCard icon={BookCheck} value={data.completedCount} label="Completed" href="/completed" />
 		</div>
 
-
 		<!-- Actions -->
 		<div class="space-y-3">
+			<Button 
+				variant="outline" 
+				class="w-full"
+				onclick={() => editDialogOpen = true}
+			>
+				<Settings class="mr-2 h-4 w-4" />
+				Edit Profile
+			</Button>
+
 			<form 
 				method="POST" 
 				action="/auth/signout" 
@@ -68,5 +83,17 @@
 				</Button>
 			</form>
 		</div>
+		
+		<!-- Edit Profile Dialog -->
+		<Dialog bind:open={editDialogOpen}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Edit Profile</DialogTitle>
+					<DialogDescription>
+						Coming Soon
+					</DialogDescription>
+				</DialogHeader>
+			</DialogContent>
+		</Dialog>
 	</div>
 </AppLayout>

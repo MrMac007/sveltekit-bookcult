@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { Avatar as AvatarPrimitive } from 'bits-ui';
 	import { cn } from '$lib/utils';
+	import type { Snippet } from 'svelte';
 
 	type Props = AvatarPrimitive.FallbackProps & {
 		class?: string;
+		children?: Snippet;
 	};
 
-	let { class: className, ...restProps }: Props = $props();
+	let { class: className, children, ...restProps }: Props = $props();
 </script>
 
 <AvatarPrimitive.Fallback
