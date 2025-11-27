@@ -3,6 +3,9 @@ import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as bookActions from '$lib/actions/books'
 import { enhanceBook } from '$lib/actions/enhance-book'
+import type { Database } from '$lib/types/database'
+
+type Book = Database['public']['Tables']['books']['Row']
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -25,6 +28,8 @@ export const load: PageServerLoad = async (event) => {
   if (bookError || !book) {
     throw error(404, 'Book not found')
   }
+
+  let typedBook = book as Book
 
   // Check if book is in user's wishlist
   const { data: wishlistItem } = await supabase
@@ -79,7 +84,7 @@ export const load: PageServerLoad = async (event) => {
     .neq('user_id', user.id) // Exclude user's own rating
     .order('created_at', { ascending: false })
 
-  if (!book.ai_enhanced) {
+  if (!typedBook.ai_enhanced) {
     const result = await enhanceBook(event, event.params.bookId)
     if (result.success) {
       const { data: refreshed } = await supabase
@@ -88,14 +93,14 @@ export const load: PageServerLoad = async (event) => {
         .eq('id', event.params.bookId)
         .single()
       if (refreshed) {
-        book = refreshed
+        typedBook = refreshed as Book
       }
     }
   }
 
   // Transform the data to match the expected type
   const groupRatings =
-    ratingsData?.map((rating: any) => ({
+    (ratingsData as any[])?.map((rating) => ({
       id: rating.id,
       rating: rating.rating,
       review: rating.review,
@@ -104,7 +109,7 @@ export const load: PageServerLoad = async (event) => {
     })) || []
 
   return {
-    book,
+    book: typedBook,
     isInWishlist: !!wishlistItem,
     isCompleted: !!completedBook,
     isCurrentlyReading: !!currentlyReadingItem,

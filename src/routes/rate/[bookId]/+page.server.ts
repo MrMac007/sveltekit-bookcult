@@ -2,6 +2,18 @@ import { createClient } from '$lib/supabase/server'
 import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 
+interface BookBasic {
+  id: string
+  title: string
+  authors: string[]
+  cover_url: string | null
+}
+
+interface ExistingRating {
+  rating: number
+  review: string | null
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -33,8 +45,8 @@ export const load: PageServerLoad = async (event) => {
     .maybeSingle()
 
   return {
-    book,
-    existingRating,
+    book: book as BookBasic,
+    existingRating: existingRating as ExistingRating | null,
   }
 }
 
@@ -65,7 +77,7 @@ export const actions: Actions = {
           book_id: event.params.bookId,
           rating,
           review: review?.trim() || null,
-        },
+        } as any,
         {
           onConflict: 'user_id,book_id',
         }

@@ -31,19 +31,20 @@
 				{#if data.wishlistBooks.length > 0}
 					<div class="space-y-4">
 						{#each data.wishlistBooks as item}
+							{@const book = item.books!}
 							<BookCard
 								book={{
-									id: item.books.id,
-									google_books_id: item.books.google_books_id,
-									title: item.books.title,
-									authors: item.books.authors,
-									cover_url: item.books.cover_url,
-									description: item.books.description,
-									published_date: item.books.published_date,
-									page_count: item.books.page_count,
-									categories: item.books.categories,
-									isbn_10: item.books.isbn_10,
-									isbn_13: item.books.isbn_13
+									id: book.id,
+									google_books_id: book.google_books_id,
+									title: book.title,
+									authors: book.authors,
+									cover_url: book.cover_url,
+									description: book.description,
+									published_date: book.published_date,
+									page_count: book.page_count,
+									categories: book.categories,
+									isbn_10: book.isbn_10,
+									isbn_13: book.isbn_13
 								}}
 								isInWishlist={true}
 							/>
@@ -64,19 +65,20 @@
 				{#if data.currentlyReading.length > 0}
 					<div class="space-y-4">
 						{#each data.currentlyReading as item}
+							{@const book = item.books!}
 							<BookCard
 								book={{
-									id: item.books.id,
-									google_books_id: item.books.google_books_id,
-									title: item.books.title,
-									authors: item.books.authors,
-									cover_url: item.books.cover_url,
-									description: item.books.description,
-									published_date: item.books.published_date,
-									page_count: item.books.page_count,
-									categories: item.books.categories,
-									isbn_10: item.books.isbn_10,
-									isbn_13: item.books.isbn_13
+									id: book.id,
+									google_books_id: book.google_books_id,
+									title: book.title,
+									authors: book.authors,
+									cover_url: book.cover_url,
+									description: book.description,
+									published_date: book.published_date,
+									page_count: book.page_count,
+									categories: book.categories,
+									isbn_10: book.isbn_10,
+									isbn_13: book.isbn_13
 								}}
 							/>
 						{/each}
@@ -94,22 +96,23 @@
 				{#if data.completedBooks.length > 0}
 					<div class="space-y-4">
 						{#each data.completedBooks as item}
+							{@const book = item.books!}
 							<div class="rounded-lg border p-4">
 								<div class="flex gap-4">
 									<div class="flex-shrink-0">
 										<BookCover
-											coverUrl={item.books.cover_url}
-											title={item.books.title}
-											bookId={item.books.id}
+											coverUrl={book.cover_url}
+											title={book.title}
+											bookId={book.id}
 											size="md"
 										/>
 									</div>
 									<div class="flex-1">
-										<a href="/book/{item.books.id}" class="block hover:opacity-80">
-											<h3 class="font-semibold line-clamp-2">{item.books.title}</h3>
-											{#if item.books.authors && item.books.authors.length > 0}
+										<a href="/book/{book.id}" class="block hover:opacity-80">
+											<h3 class="font-semibold line-clamp-2">{book.title}</h3>
+											{#if book.authors && book.authors.length > 0}
 												<p class="mt-1 text-sm text-muted-foreground">
-													{item.books.authors.join(', ')}
+													{book.authors.join(', ')}
 												</p>
 											{/if}
 										</a>
@@ -125,7 +128,7 @@
 										{:else}
 											<div class="mt-3">
 												<a
-													href="/rate/{item.books.id}"
+													href="/rate/{book.id}"
 													class="text-sm text-primary hover:underline"
 												>
 													Rate this book

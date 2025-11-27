@@ -26,28 +26,29 @@
 					progress
 				</h2>
 				{#each data.currentlyReading as item (item.id)}
+					{@const book = item.books!}
 					<Card>
 						<CardContent class="p-4">
 							<div class="flex gap-4">
 								<div class="flex-shrink-0">
 									<BookCover
-										coverUrl={item.books.cover_url}
-										title={item.books.title}
-										bookId={item.books.id}
+										coverUrl={book.cover_url}
+										title={book.title}
+										bookId={book.id}
 										size="md"
 									/>
 								</div>
 
 								<div class="flex flex-1 flex-col">
 									<div class="flex-1">
-										<a href={`/book/${item.books.id}`}>
+										<a href={`/book/${book.id}`}>
 											<h3 class="font-semibold leading-tight transition-colors hover:text-primary">
-												{item.books.title}
+												{book.title}
 											</h3>
 										</a>
-										{#if item.books.authors && item.books.authors.length > 0}
+										{#if book.authors && book.authors.length > 0}
 											<p class="mt-1 text-sm text-muted-foreground">
-												by {item.books.authors.join(', ')}
+												by {book.authors.join(', ')}
 											</p>
 										{/if}
 
@@ -56,28 +57,28 @@
 											<span>{formatRelativeTime(item.started_at)}</span>
 										</div>
 
-										{#if item.books.description}
+										{#if book.description}
 											<p class="mt-2 line-clamp-2 text-sm text-muted-foreground">
-												{item.books.description}
+												{book.description}
 											</p>
 										{/if}
 
 										<div class="mt-auto flex flex-wrap gap-2 pt-3 text-xs text-muted-foreground">
-											{#if item.books.published_date}
-												<span>{new Date(item.books.published_date).getFullYear()}</span>
+											{#if book.published_date}
+												<span>{new Date(book.published_date).getFullYear()}</span>
 											{/if}
-											{#if item.books.page_count && item.books.published_date}
+											{#if book.page_count && book.published_date}
 												<span>•</span>
 											{/if}
-											{#if item.books.page_count}
-												<span>{item.books.page_count} pages</span>
+											{#if book.page_count}
+												<span>{book.page_count} pages</span>
 											{/if}
 										</div>
 									</div>
 
 									<div class="mt-3 flex flex-wrap gap-2">
 										<form method="POST" action="?/markComplete" class="flex-1 min-w-[140px]">
-											<input type="hidden" name="bookId" value={item.books.id} />
+											<input type="hidden" name="bookId" value={book.id} />
 											<Button type="submit" variant="default" size="sm" class="w-full gap-1.5">
 												<BookCheck class="h-3.5 w-3.5" />
 												Mark Complete
@@ -87,7 +88,7 @@
 											method="POST"
 											action="?/remove"
 											class="flex-1 min-w-[140px]"
-											on:submit={(e) => {
+											onsubmit={(e) => {
 												if (!confirm('Remove this book from currently reading?')) {
 													e.preventDefault();
 												}

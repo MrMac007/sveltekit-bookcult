@@ -6,11 +6,13 @@
 
 	interface CurrentBook {
 		id: string;
-		google_books_id: string;
+		google_books_id: string | null;
 		title: string;
 		authors: string[] | null;
 		cover_url: string | null;
 		description: string | null;
+		published_date?: string | null;
+		page_count?: number | null;
 	}
 
 	interface ReadingMember {

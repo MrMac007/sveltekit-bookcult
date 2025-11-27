@@ -72,8 +72,9 @@
 					await update();
 					isSubmitting = false;
 					if (result.type === 'success' && result.data) {
-						if (result.data.message) {
-							actionMessage = result.data.message;
+						const data = result.data as { message?: string };
+						if (data.message) {
+							actionMessage = data.message;
 						}
 					}
 				};
@@ -108,8 +109,9 @@
 					await update();
 					isSubmitting = false;
 					if (result.type === 'success' && result.data) {
-						if (result.data.message) {
-							actionMessage = result.data.message;
+						const data = result.data as { message?: string };
+						if (data.message) {
+							actionMessage = data.message;
 						}
 					}
 				};
@@ -146,8 +148,9 @@
 					await update();
 					isSubmitting = false;
 					if (result.type === 'success' && result.data) {
-						if (result.data.message) {
-							actionMessage = result.data.message;
+						const data = result.data as { message?: string };
+						if (data.message) {
+							actionMessage = data.message;
 						}
 					}
 				};

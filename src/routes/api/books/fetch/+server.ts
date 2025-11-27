@@ -4,6 +4,10 @@ import { isValidUUID } from '$lib/utils/validation'
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 
+interface DbBookId {
+  id: string
+}
+
 export const GET: RequestHandler = async (event) => {
   const googleBooksId = event.url.searchParams.get('id')
 
@@ -35,9 +39,11 @@ export const GET: RequestHandler = async (event) => {
       return json({ error: 'Book created but database ID not found' }, { status: 500 })
     }
 
+    const typedDbBook = dbBook as DbBookId
+
     return json({
       ...book,
-      id: dbBook.id,
+      id: typedDbBook.id,
     })
   } catch (err) {
     console.error('[API] Error fetching book:', err)

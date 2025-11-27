@@ -12,10 +12,10 @@
 			id: string;
 			title: string;
 			authors: string[];
-			cover_url?: string;
+			cover_url?: string | null;
 		};
-		existingRating?: number;
-		existingReview?: string;
+		existingRating?: number | null;
+		existingReview?: string | null;
 	}
 
 	let { book, existingRating, existingReview }: Props = $props();

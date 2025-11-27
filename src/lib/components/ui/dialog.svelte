@@ -2,13 +2,22 @@
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import type { Snippet } from 'svelte';
 
-	type Props = DialogPrimitive.Props & {
+	interface Props {
+		open?: boolean;
+		onOpenChange?: (open: boolean) => void;
 		children?: Snippet;
-	};
+	}
 
-	let { children, ...restProps }: Props = $props();
+	let { 
+		open = $bindable(false), 
+		onOpenChange,
+		children 
+	}: Props = $props();
 </script>
 
-<DialogPrimitive.Root data-slot="dialog" {...restProps}>
+<DialogPrimitive.Root 
+	bind:open
+	{onOpenChange}
+>
 	{@render children?.()}
 </DialogPrimitive.Root>

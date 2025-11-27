@@ -42,7 +42,8 @@
 					isSubmitting = false;
 
 					if (result.type === 'failure') {
-						errorMessage = result.data?.error || 'Failed to create group';
+						const data = result.data as { error?: string } | undefined;
+						errorMessage = data?.error || 'Failed to create group';
 					}
 					// Redirect is handled by the server action via throw redirect()
 					// No need to handle success case - SvelteKit will follow the redirect

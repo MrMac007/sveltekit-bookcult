@@ -3,10 +3,10 @@
 	import { cn } from '$lib/utils';
 	import type { Snippet } from 'svelte';
 
-	type Props = AvatarPrimitive.Props & {
+	interface Props {
 		class?: string;
 		children?: Snippet;
-	};
+	}
 
 	let { class: className, children, ...restProps }: Props = $props();
 </script>

@@ -1,6 +1,43 @@
 import { followUser, unfollowUser } from '$lib/actions/follows'
 import { createClient } from '$lib/supabase/server'
-import { redirect, fail, type Actions, type PageServerLoad } from '@sveltejs/kit'
+import { redirect, fail } from '@sveltejs/kit'
+import type { PageServerLoad, Actions } from './$types'
+import type { Database } from '$lib/types/database'
+
+type Profile = Database['public']['Tables']['profiles']['Row']
+
+interface BookBasic {
+  id: string
+  title: string
+  authors: string[]
+  cover_url: string | null
+}
+
+interface RatingWithBook {
+  id: string
+  rating: number
+  review: string | null
+  created_at: string
+  books: BookBasic | null
+}
+
+interface WishlistWithBook {
+  id: string
+  added_at: string
+  books: BookBasic | null
+}
+
+interface CompletedWithBook {
+  id: string
+  completed_at: string
+  books: BookBasic | null
+}
+
+interface CurrentlyReadingWithBook {
+  id: string
+  started_at: string
+  books: (BookBasic & { google_books_id: string | null }) | null
+}
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -125,18 +162,23 @@ export const load: PageServerLoad = async (event) => {
       .limit(10),
   ])
 
+  const typedRatings = (recentRatings || []) as unknown as RatingWithBook[]
+  const typedWishlist = (wishlistBooks || []) as unknown as WishlistWithBook[]
+  const typedCompleted = (completedBooks || []) as unknown as CompletedWithBook[]
+  const typedReading = (currentlyReading || []) as unknown as CurrentlyReadingWithBook[]
+
   return {
-    profile,
+    profile: profile as Profile,
     followerCount: followerCount || 0,
     followingCount: followingCount || 0,
     isFollowing: !!followData,
     wishlistCount: wishlistCount || 0,
     completedCount: completedCount || 0,
     ratingsCount: ratingsCount || 0,
-    recentRatings: recentRatings || [],
-    wishlistBooks: (wishlistBooks || []).filter((w) => w.books !== null),
-    completedBooks: (completedBooks || []).filter((c) => c.books !== null),
-    currentlyReading: (currentlyReading || []).filter((c) => c.books !== null),
+    recentRatings: typedRatings.filter((r) => r.books !== null),
+    wishlistBooks: typedWishlist.filter((w) => w.books !== null),
+    completedBooks: typedCompleted.filter((c) => c.books !== null),
+    currentlyReading: typedReading.filter((c) => c.books !== null),
   }
 }
 

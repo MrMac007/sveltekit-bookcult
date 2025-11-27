@@ -81,22 +81,23 @@
 					{:else}
 						<div class="space-y-3">
 							{#each data.wishlistBooks as item (item.id)}
+								{@const book = item.books!}
 								<a
-									href={`/book/${item.books.id}`}
+									href={`/book/${book.id}`}
 									class="flex items-center gap-3 rounded-md p-2 hover:bg-accent/40"
 								>
 									<div class="relative h-12 w-8 flex-shrink-0 overflow-hidden rounded bg-muted">
-										{#if item.books.cover_url}
-											<img src={item.books.cover_url} alt={item.books.title} class="h-full w-full object-cover" />
+										{#if book.cover_url}
+											<img src={book.cover_url} alt={book.title} class="h-full w-full object-cover" />
 										{:else}
 											<BookMarked class="mx-auto h-4 w-4 text-muted-foreground" />
 										{/if}
 									</div>
 									<div class="min-w-0 flex-1">
-										<p class="text-sm font-medium line-clamp-1">{item.books.title}</p>
-										{#if item.books.authors && item.books.authors.length > 0}
+										<p class="text-sm font-medium line-clamp-1">{book.title}</p>
+										{#if book.authors && book.authors.length > 0}
 											<p class="text-xs text-muted-foreground line-clamp-1">
-												{item.books.authors.join(', ')}
+												{book.authors.join(', ')}
 											</p>
 										{/if}
 									</div>
@@ -117,22 +118,23 @@
 					{:else}
 						<div class="space-y-3">
 							{#each data.completedBooks as item (item.id)}
+								{@const book = item.books!}
 								<a
-									href={`/book/${item.books.id}`}
+									href={`/book/${book.id}`}
 									class="flex items-center gap-3 rounded-md p-2 hover:bg-accent/40"
 								>
 									<div class="relative h-12 w-8 flex-shrink-0 overflow-hidden rounded bg-muted">
-										{#if item.books.cover_url}
-											<img src={item.books.cover_url} alt={item.books.title} class="h-full w-full object-cover" />
+										{#if book.cover_url}
+											<img src={book.cover_url} alt={book.title} class="h-full w-full object-cover" />
 										{:else}
 											<BookCheck class="mx-auto h-4 w-4 text-muted-foreground" />
 										{/if}
 									</div>
 									<div class="min-w-0 flex-1">
-										<p class="text-sm font-medium line-clamp-1">{item.books.title}</p>
-										{#if item.books.authors && item.books.authors.length > 0}
+										<p class="text-sm font-medium line-clamp-1">{book.title}</p>
+										{#if book.authors && book.authors.length > 0}
 											<p class="text-xs text-muted-foreground line-clamp-1">
-												{item.books.authors.join(', ')}
+												{book.authors.join(', ')}
 											</p>
 										{/if}
 									</div>
@@ -155,22 +157,23 @@
 				{:else}
 					<div class="space-y-3">
 						{#each data.currentlyReading as item (item.id)}
+							{@const book = item.books!}
 							<a
-								href={`/book/${item.books.id}`}
+								href={`/book/${book.id}`}
 								class="flex items-center gap-3 rounded-md p-2 hover:bg-accent/40"
 							>
 								<div class="relative h-12 w-8 flex-shrink-0 overflow-hidden rounded bg-muted">
-									{#if item.books.cover_url}
-										<img src={item.books.cover_url} alt={item.books.title} class="h-full w-full object-cover" />
+									{#if book.cover_url}
+										<img src={book.cover_url} alt={book.title} class="h-full w-full object-cover" />
 									{:else}
 										<BookOpen class="mx-auto h-4 w-4 text-muted-foreground" />
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
-									<p class="text-sm font-medium line-clamp-1">{item.books.title}</p>
-									{#if item.books.authors && item.books.authors.length > 0}
+									<p class="text-sm font-medium line-clamp-1">{book.title}</p>
+									{#if book.authors && book.authors.length > 0}
 										<p class="text-xs text-muted-foreground line-clamp-1">
-											{item.books.authors.join(', ')}
+											{book.authors.join(', ')}
 										</p>
 									{/if}
 								</div>
@@ -195,15 +198,16 @@
 				{:else}
 					<div class="space-y-4">
 						{#each data.recentRatings as rating (rating.id)}
+							{@const book = rating.books!}
 							<div class="flex gap-3 border-b pb-4 last:border-b-0 last:pb-0">
 								<a
-									href={`/book/${rating.books.id}`}
+									href={`/book/${book.id}`}
 									class="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded bg-muted"
 								>
-									{#if rating.books.cover_url}
+									{#if book.cover_url}
 										<img
-											src={rating.books.cover_url}
-											alt={rating.books.title}
+											src={book.cover_url}
+											alt={book.title}
 											class="h-full w-full object-cover"
 										/>
 									{:else}
@@ -213,12 +217,12 @@
 									{/if}
 								</a>
 								<div class="flex-1">
-									<a href={`/book/${rating.books.id}`} class="font-medium hover:underline">
-										{rating.books.title}
+									<a href={`/book/${book.id}`} class="font-medium hover:underline">
+										{book.title}
 									</a>
-									{#if rating.books.authors && rating.books.authors.length > 0}
+									{#if book.authors && book.authors.length > 0}
 										<p class="text-xs text-muted-foreground line-clamp-1">
-											{rating.books.authors.join(', ')}
+											{book.authors.join(', ')}
 										</p>
 									{/if}
 									<div class="mt-2 flex items-center gap-2">

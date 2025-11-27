@@ -80,7 +80,7 @@
 											method="POST"
 											action="?/remove"
 											class="flex-1 min-w-[140px]"
-											on:submit={(e) => {
+											onsubmit={(e) => {
 												if (!confirm('Remove this book from completed (and delete rating)?')) {
 													e.preventDefault();
 												}

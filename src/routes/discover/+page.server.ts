@@ -19,7 +19,7 @@ export const load: PageServerLoad = async (event) => {
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .single() as { data: { id: string; username: string; display_name: string | null } | null }
 
   return {
     profile,

@@ -121,7 +121,7 @@
 
 <div class="flex min-h-screen items-center justify-center px-6 py-12">
 	<!-- Background gradient -->
-	<div class="absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-accent/5 to-background" />
+	<div class="absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-accent/5 to-background"></div>
 
 	<Card class="w-full max-w-md">
 		<CardHeader class="space-y-1 text-center">
@@ -224,7 +224,7 @@
 
 			<div class="relative">
 				<div class="absolute inset-0 flex items-center">
-					<span class="w-full border-t" />
+					<span class="w-full border-t"></span>
 				</div>
 				<div class="relative flex justify-center text-xs uppercase">
 					<span class="bg-card px-2 text-muted-foreground">

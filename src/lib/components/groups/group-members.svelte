@@ -14,7 +14,7 @@
 			username: string;
 			display_name: string | null;
 			avatar_url: string | null;
-		};
+		} | null;
 	}
 
 	interface Props {
@@ -27,7 +27,7 @@
 	let { members, currentUserId, isAdmin, groupId }: Props = $props();
 
 	function getDisplayName(member: Member): string {
-		return member.profiles.display_name || member.profiles.username;
+		return member.profiles?.display_name || member.profiles?.username || 'Unknown';
 	}
 
 	function getInitials(member: Member): string {
@@ -46,76 +46,79 @@
 		</CardTitle>
 	</CardHeader>
 	<CardContent class="space-y-3">
-		{#each members as member}
-			<div class="flex items-center justify-between rounded-2xl border border-primary/10 bg-muted/40 p-3">
-				<div class="flex items-center gap-3">
-					<div class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-base font-semibold text-primary">
-						{getInitials(member)}
-					</div>
+		{#each members as member (member.id)}
+			{@const profile = member.profiles}
+			{#if profile}
+				<div class="flex items-center justify-between rounded-2xl border border-primary/10 bg-muted/40 p-3">
 					<div class="flex items-center gap-3">
-						<div>
-							<div class="flex items-center gap-2">
-								<a
-									href="/users/{member.profiles.id}"
-									class="font-medium hover:underline"
-								>
-									{getDisplayName(member)}
-								</a>
-								{#if member.role === 'admin'}
-									<Badge variant="secondary" class="text-xs">Admin</Badge>
-								{/if}
-								{#if member.profiles.id === currentUserId}
-									<Badge variant="outline" class="text-xs">You</Badge>
-								{/if}
+						<div class="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-base font-semibold text-primary">
+							{getInitials(member)}
+						</div>
+						<div class="flex items-center gap-3">
+							<div>
+								<div class="flex items-center gap-2">
+									<a
+										href="/users/{profile.id}"
+										class="font-medium hover:underline"
+									>
+										{getDisplayName(member)}
+									</a>
+									{#if member.role === 'admin'}
+										<Badge variant="secondary" class="text-xs">Admin</Badge>
+									{/if}
+									{#if profile.id === currentUserId}
+										<Badge variant="outline" class="text-xs">You</Badge>
+									{/if}
+								</div>
+								<p class="text-xs text-muted-foreground">
+									@{profile.username}
+								</p>
 							</div>
-							<p class="text-xs text-muted-foreground">
-								@{member.profiles.username}
-							</p>
 						</div>
 					</div>
+
+					{#if isAdmin && profile.id !== currentUserId}
+						<div class="flex items-center gap-1">
+							<form method="POST" action="?/updateMemberRole" use:enhance>
+								<input type="hidden" name="groupId" value={groupId} />
+								<input type="hidden" name="userId" value={profile.id} />
+								<input
+									type="hidden"
+									name="newRole"
+									value={member.role === 'admin' ? 'member' : 'admin'}
+								/>
+								<Button
+									type="submit"
+									size="sm"
+									variant="ghost"
+									title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
+									class="h-8 w-8 p-0"
+								>
+									{#if member.role === 'admin'}
+										<ShieldOff class="h-4 w-4" />
+									{:else}
+										<ShieldCheck class="h-4 w-4" />
+									{/if}
+								</Button>
+							</form>
+
+							<form method="POST" action="?/removeMember" use:enhance>
+								<input type="hidden" name="groupId" value={groupId} />
+								<input type="hidden" name="userId" value={profile.id} />
+								<Button
+									type="submit"
+									size="sm"
+									variant="ghost"
+									class="h-8 w-8 p-0 text-destructive hover:text-destructive"
+									title="Remove from group"
+								>
+									<UserMinus class="h-4 w-4" />
+								</Button>
+							</form>
+						</div>
+					{/if}
 				</div>
-
-				{#if isAdmin && member.profiles.id !== currentUserId}
-					<div class="flex items-center gap-1">
-						<form method="POST" action="?/updateMemberRole" use:enhance>
-							<input type="hidden" name="groupId" value={groupId} />
-							<input type="hidden" name="userId" value={member.profiles.id} />
-							<input
-								type="hidden"
-								name="newRole"
-								value={member.role === 'admin' ? 'member' : 'admin'}
-							/>
-							<Button
-								type="submit"
-								size="sm"
-								variant="ghost"
-								title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
-								class="h-8 w-8 p-0"
-							>
-								{#if member.role === 'admin'}
-									<ShieldOff class="h-4 w-4" />
-								{:else}
-									<ShieldCheck class="h-4 w-4" />
-								{/if}
-							</Button>
-						</form>
-
-						<form method="POST" action="?/removeMember" use:enhance>
-							<input type="hidden" name="groupId" value={groupId} />
-							<input type="hidden" name="userId" value={member.profiles.id} />
-							<Button
-								type="submit"
-								size="sm"
-								variant="ghost"
-								class="h-8 w-8 p-0 text-destructive hover:text-destructive"
-								title="Remove from group"
-							>
-								<UserMinus class="h-4 w-4" />
-							</Button>
-						</form>
-					</div>
-				{/if}
-			</div>
+			{/if}
 		{/each}
 	</CardContent>
 </Card>

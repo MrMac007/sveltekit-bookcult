@@ -56,9 +56,10 @@
 </script>
 
 {#if compact}
+	{@const Icon = iconInfo.icon}
 	<div class="flex gap-3 border-l-2 border-muted pl-3 py-2">
 		<div class="mt-0.5 flex-shrink-0">
-			<svelte:component this={iconInfo.icon} class={iconInfo.className} />
+			<Icon class={iconInfo.className} />
 		</div>
 		<div class="min-w-0 flex-1">
 			<div class="flex flex-wrap items-center gap-2">
@@ -93,11 +94,12 @@
 		</div>
 	</div>
 {:else}
+	{@const Icon = iconInfo.icon}
 	<Card>
 		<CardContent class="p-4">
 			<div class="flex gap-4">
 				<div class="mt-1 flex-shrink-0">
-					<svelte:component this={iconInfo.icon} class={iconInfo.className} />
+					<Icon class={iconInfo.className} />
 				</div>
 				<div class="min-w-0 flex-1">
 					<div class="mb-2 flex items-center gap-2">

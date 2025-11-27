@@ -21,24 +21,25 @@
 				{:else}
 					<div class="space-y-4">
 						{#each data.following as follow (follow.id)}
+							{@const profile = follow.profiles}
 							<div class="flex items-center gap-4 rounded-md p-3 hover:bg-accent/50">
 								<a href={`/users/${follow.following_id}`}>
 									<div class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold transition-colors hover:bg-primary/20">
-										{follow.profiles?.display_name?.[0]?.toUpperCase() ||
-										follow.profiles?.username?.[0]?.toUpperCase() ||
+										{profile?.display_name?.[0]?.toUpperCase() ||
+										profile?.username?.[0]?.toUpperCase() ||
 										'?'}
 									</div>
 								</a>
 								<div class="flex-1">
 									<a href={`/users/${follow.following_id}`} class="hover:underline">
 										<p class="font-medium">
-											{follow.profiles?.display_name ||
-											follow.profiles?.username ||
+											{profile?.display_name ||
+											profile?.username ||
 											'Unknown User'}
 										</p>
 									</a>
 									<p class="text-sm text-muted-foreground">
-										@{follow.profiles?.username}
+										@{profile?.username}
 									</p>
 								</div>
 								<FollowButton userId={follow.following_id} isFollowing={true} size="sm" class="w-auto" />

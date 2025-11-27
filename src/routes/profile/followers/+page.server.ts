@@ -1,6 +1,22 @@
 import { followUser, unfollowUser } from '$lib/actions/follows'
 import { createClient } from '$lib/supabase/server'
-import { redirect, fail, type Actions, type PageServerLoad } from '@sveltejs/kit'
+import { redirect, fail } from '@sveltejs/kit'
+import type { PageServerLoad, Actions } from './$types'
+
+interface FollowerProfile {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+  bio: string | null
+}
+
+interface FollowerItem {
+  id: string
+  created_at: string
+  follower_id: string
+  profiles: FollowerProfile | null
+}
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -36,7 +52,8 @@ export const load: PageServerLoad = async (event) => {
     console.error('Error fetching followers:', error)
   }
 
-  const followerIds = followers?.map((f) => f.follower_id).filter(Boolean) || []
+  const typedFollowers = (followers || []) as unknown as FollowerItem[]
+  const followerIds = typedFollowers.map((f) => f.follower_id).filter(Boolean)
   let followBackSet = new Set<string>()
 
   if (followerIds.length > 0) {
@@ -46,14 +63,13 @@ export const load: PageServerLoad = async (event) => {
       .eq('follower_id', user.id)
       .in('following_id', followerIds)
 
-    followBackSet = new Set(followBackRows?.map((row: any) => row.following_id) || [])
+    followBackSet = new Set((followBackRows as any[])?.map((row) => row.following_id) || [])
   }
 
-  const followersWithStatus =
-    followers?.map((follower) => ({
-      ...follower,
-      isFollowingBack: followBackSet.has(follower.follower_id),
-    })) || []
+  const followersWithStatus = typedFollowers.map((follower) => ({
+    ...follower,
+    isFollowingBack: followBackSet.has(follower.follower_id),
+  }))
 
   return {
     followers: followersWithStatus,

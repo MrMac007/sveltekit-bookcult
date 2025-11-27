@@ -3,6 +3,53 @@ import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as groupActions from '$lib/actions/groups'
 
+interface GroupWithBook {
+  id: string
+  name: string
+  description: string | null
+  invite_code: string
+  current_book_id: string | null
+  books: {
+    id: string
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    cover_url: string | null
+    description: string | null
+    published_date: string | null
+    page_count: number | null
+  } | null
+}
+
+interface GroupMember {
+  id: string
+  role: 'member' | 'admin'
+  joined_at: string
+  profiles: {
+    id: string
+    username: string
+    display_name: string | null
+    avatar_url: string | null
+  } | null
+}
+
+interface GroupBook {
+  id: string
+  book_id: string
+  added_at: string
+  display_order: number | null
+  books: {
+    id: string
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    cover_url: string | null
+    description: string | null
+    published_date: string | null
+    page_count: number | null
+  } | null
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -45,6 +92,8 @@ export const load: PageServerLoad = async (event) => {
     throw error(404, 'Group not found')
   }
 
+  const typedGroup = group as unknown as GroupWithBook
+
   // Check if user is a member
   const { data: userMembership } = await supabase
     .from('group_members')
@@ -56,6 +105,8 @@ export const load: PageServerLoad = async (event) => {
   if (!userMembership) {
     throw error(403, 'You are not a member of this group')
   }
+
+  const typedMembership = userMembership as { role: 'member' | 'admin' }
 
   // Get all group members with profiles
   const { data: members } = await supabase
@@ -76,16 +127,18 @@ export const load: PageServerLoad = async (event) => {
     .eq('group_id', groupId)
     .order('joined_at', { ascending: true })
 
+  const typedMembers = (members || []) as unknown as GroupMember[]
+
   // Check if current user is reading the current book
   let isCurrentUserReading = false
   let readingMembers: any[] = []
 
-  if (group.current_book_id) {
+  if (typedGroup.current_book_id) {
     const { data: reading } = await supabase
       .from('currently_reading')
       .select('id')
       .eq('user_id', user.id)
-      .eq('book_id', group.current_book_id)
+      .eq('book_id', typedGroup.current_book_id)
       .maybeSingle()
 
     isCurrentUserReading = !!reading
@@ -105,7 +158,7 @@ export const load: PageServerLoad = async (event) => {
         )
       `
       )
-      .eq('book_id', group.current_book_id)
+      .eq('book_id', typedGroup.current_book_id)
       .eq('group_id', groupId)
 
     readingMembers = readers || []
@@ -133,10 +186,11 @@ export const load: PageServerLoad = async (event) => {
     `
     )
     .eq('group_id', groupId)
-    .order('display_order', { ascending: true, nullsLast: true })
+    .order('display_order', { ascending: true, nullsFirst: false })
     .order('added_at', { ascending: false })
 
-  const readingListBookIds = readingList?.map((item: any) => item.book_id) || []
+  const typedReadingList = (readingList || []) as unknown as GroupBook[]
+  const readingListBookIds = typedReadingList.map((item) => item.book_id)
 
   // Get group ratings (only for books on the reading list)
   const { data: ratingsData } = await supabase
@@ -166,7 +220,7 @@ export const load: PageServerLoad = async (event) => {
 
   // Transform ratings for the component
   const ratings =
-    ratingsData?.map((r: any) => ({
+    (ratingsData as any[])?.map((r) => ({
       id: r.id,
       rating: r.rating,
       review: r.review,
@@ -182,30 +236,29 @@ export const load: PageServerLoad = async (event) => {
   const ratedBookIds = new Set(ratings.map((r) => r.book_id))
 
   // Separate reading list into rated and unrated books
-  const upNextBooks =
-    readingList
-      ?.filter((item: any) => item.books !== null && !ratedBookIds.has(item.book_id))
-      .map((item: any) => ({
-        groupBookId: item.id,
-        addedAt: item.added_at,
-        displayOrder: item.display_order,
-        ...item.books,
-      })) || []
+  const upNextBooks = typedReadingList
+    .filter((item) => item.books !== null && !ratedBookIds.has(item.book_id))
+    .map((item) => ({
+      groupBookId: item.id,
+      addedAt: item.added_at,
+      displayOrder: item.display_order,
+      ...item.books,
+    }))
 
   return {
     group: {
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      invite_code: group.invite_code,
-      current_book_id: group.current_book_id,
-      currentBook: group.books,
-      isAdmin: userMembership.role === 'admin',
-      memberCount: members?.length || 0,
+      id: typedGroup.id,
+      name: typedGroup.name,
+      description: typedGroup.description,
+      invite_code: typedGroup.invite_code,
+      current_book_id: typedGroup.current_book_id,
+      currentBook: typedGroup.books,
+      isAdmin: typedMembership.role === 'admin',
+      memberCount: typedMembers.length,
       isCurrentUserReading,
       readingMembers,
     },
-    members: members || [],
+    members: typedMembers,
     ratings,
     upNextBooks,
     currentUserId: user.id,

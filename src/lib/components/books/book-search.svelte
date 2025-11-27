@@ -191,8 +191,9 @@
 				.eq('google_books_id', book.google_books_id)
 				.single();
 
-			if (existing?.id) {
-				return existing.id;
+			const typedExisting = existing as { id: string } | null;
+			if (typedExisting?.id) {
+				return typedExisting.id;
 			}
 
 			const response = await fetch(`/api/books/fetch?id=${book.google_books_id}`);
@@ -219,16 +220,18 @@
 
 			const { error } = await supabase
 				.from('wishlists')
-				.insert({ user_id: user.id, book_id: bookId });
+				.insert({ user_id: user.id, book_id: bookId } as any);
 
 			if (error && error.code !== '23505') {
 				throw error;
 			}
 
-			userWishlist = new Set([...userWishlist, book.google_books_id]);
-			userCompleted = new Set(
-				[...userCompleted].filter((id) => id !== book.google_books_id)
-			);
+			if (book.google_books_id) {
+				userWishlist = new Set([...userWishlist, book.google_books_id]);
+				userCompleted = new Set(
+					[...userCompleted].filter((id) => id !== book.google_books_id)
+				);
+			}
 		} catch (error) {
 			console.error('Error adding to wishlist:', error);
 			alert('Failed to add to wishlist. Please try again.');
@@ -266,16 +269,18 @@
 
 			const { error: insertError } = await supabase
 				.from('completed_books')
-				.insert({ user_id: user.id, book_id: bookId });
+				.insert({ user_id: user.id, book_id: bookId } as any);
 
 			if (insertError) {
 				throw insertError;
 			}
 
-			userCompleted = new Set([...userCompleted, book.google_books_id]);
-			userWishlist = new Set(
-				[...userWishlist].filter((id) => id !== book.google_books_id)
-			);
+			if (book.google_books_id) {
+				userCompleted = new Set([...userCompleted, book.google_books_id]);
+				userWishlist = new Set(
+					[...userWishlist].filter((id) => id !== book.google_books_id)
+				);
+			}
 
 			goto(`/rate/${bookId}`);
 		} catch (error) {
@@ -295,8 +300,7 @@
 					placeholder="Search by title..."
 					class="h-12 pl-9"
 					value={searchQuery}
-					oninput={(e) => handleSearchInput(e.currentTarget.value)}
-					onkeydown={handleKeyDown}
+					oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
 				/>
 				{#if isSearching}
 					<Loader2 class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
@@ -339,13 +343,13 @@
 			<h2 class="text-lg font-semibold">
 				Found {searchResults.length} {searchResults.length === 1 ? 'book' : 'books'}
 			</h2>
-			{#each searchResults as book (book.google_books_id)}
+			{#each searchResults as book (book.google_books_id || book.id)}
 				<BookCard
 					{book}
 					onAddToWishlist={handleAddToWishlist}
 					onMarkComplete={handleMarkComplete}
-					isInWishlist={userWishlist.has(book.google_books_id)}
-					isCompleted={userCompleted.has(book.google_books_id)}
+					isInWishlist={book.google_books_id ? userWishlist.has(book.google_books_id) : false}
+					isCompleted={book.google_books_id ? userCompleted.has(book.google_books_id) : false}
 				/>
 			{/each}
 

@@ -1,6 +1,28 @@
 import { createClient } from '$lib/supabase/server'
 import { redirect } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
+import type { Database } from '$lib/types/database'
+
+type Profile = Database['public']['Tables']['profiles']['Row']
+
+interface CurrentlyReadingItem {
+  id: string
+  started_at: string
+  group_id: string | null
+  books: {
+    id: string
+    title: string
+    authors: string[]
+    cover_url: string | null
+    description: string | null
+    page_count: number | null
+    published_date: string | null
+  } | null
+  groups: {
+    id: string
+    name: string
+  } | null
+}
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -19,6 +41,10 @@ export const load: PageServerLoad = async (event) => {
     .select('*')
     .eq('id', user.id)
     .single()
+
+  if (!profile) {
+    throw redirect(303, '/login')
+  }
 
   // Get wishlist count
   const { count: wishlistCount } = await supabase
@@ -65,10 +91,10 @@ export const load: PageServerLoad = async (event) => {
     .order('started_at', { ascending: false })
     .limit(6)
 
-  const currentlyReadingItems = currentlyReading?.filter((item) => item.books !== null) ?? []
+  const currentlyReadingItems = (currentlyReading as CurrentlyReadingItem[] | null)?.filter((item) => item.books !== null) ?? []
 
   return {
-    profile,
+    profile: profile as Profile,
     wishlistCount: wishlistCount || 0,
     completedCount: completedCount || 0,
     currentlyReadingCount: currentlyReadingCount || 0,

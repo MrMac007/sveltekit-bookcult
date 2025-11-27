@@ -1,6 +1,7 @@
 import { followUser, unfollowUser } from '$lib/actions/follows'
 import { createClient } from '$lib/supabase/server'
-import { redirect, fail, type Actions, type PageServerLoad } from '@sveltejs/kit'
+import { redirect, fail } from '@sveltejs/kit'
+import type { PageServerLoad, Actions } from './$types'
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -13,7 +14,20 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(303, '/login')
   }
 
-  const { data: following, error } = await supabase
+  type FollowingWithProfile = {
+    id: string
+    created_at: string
+    following_id: string
+    profiles: {
+      id: string
+      username: string
+      display_name: string | null
+      avatar_url: string | null
+      bio: string | null
+    } | null
+  }
+
+  const result = await supabase
     .from('follows')
     .select(
       `
@@ -31,6 +45,8 @@ export const load: PageServerLoad = async (event) => {
     )
     .eq('follower_id', user.id)
     .order('created_at', { ascending: false })
+
+  const { data: following, error } = result as { data: FollowingWithProfile[] | null; error: any }
 
   if (error) {
     console.error('Error fetching following list:', error)

@@ -2,6 +2,24 @@ import { createClient } from '$lib/supabase/server'
 import { redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 
+interface WishlistItem {
+  id: string
+  added_at: string
+  books: {
+    id: string
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    cover_url: string | null
+    description: string | null
+    published_date: string | null
+    page_count: number | null
+    categories: string[]
+    isbn_10: string | null
+    isbn_13: string | null
+  } | null
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -38,8 +56,10 @@ export const load: PageServerLoad = async (event) => {
     .eq('user_id', user.id)
     .order('added_at', { ascending: false })
 
+  const typedWishlist = (wishlistBooks || []) as unknown as WishlistItem[]
+
   return {
-    wishlistBooks: wishlistBooks || [],
+    wishlistBooks: typedWishlist.filter(item => item.books !== null),
   }
 }
 
@@ -107,7 +127,7 @@ export const actions: Actions = {
       const { error } = await supabase.from('completed_books').insert({
         user_id: user.id,
         book_id: bookId,
-      })
+      } as any)
 
       if (error) throw error
 

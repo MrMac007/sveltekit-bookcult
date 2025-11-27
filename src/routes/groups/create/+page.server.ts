@@ -2,6 +2,14 @@ import { createClient } from '$lib/supabase/server'
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 
+interface GroupRow {
+  id: string
+  name: string
+  description: string | null
+  admin_id: string
+  invite_code: string
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -45,7 +53,7 @@ export const actions: Actions = {
           description: description || null,
           admin_id: user.id,
           invite_code: inviteCode,
-        })
+        } as any)
         .select()
         .single()
 
@@ -57,17 +65,19 @@ export const actions: Actions = {
         throw groupError
       }
 
+      const typedGroup = group as GroupRow
+
       // Add creator as admin member
       const { error: memberError } = await supabase.from('group_members').insert({
-        group_id: group.id,
+        group_id: typedGroup.id,
         user_id: user.id,
         role: 'admin',
-      })
+      } as any)
 
       if (memberError) throw memberError
 
       // Redirect to the new group page
-      throw redirect(303, `/groups/${group.id}`)
+      throw redirect(303, `/groups/${typedGroup.id}`)
     } catch (error) {
       if (error instanceof Response) throw error // Re-throw redirects
       console.error('Error creating group:', error)

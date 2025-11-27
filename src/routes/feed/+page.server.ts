@@ -1,6 +1,7 @@
 import { createClient } from '$lib/supabase/server'
 import { groupActivitiesByBook } from '$lib/utils/group-activities'
-import { redirect, type PageServerLoad } from '@sveltejs/kit'
+import { redirect } from '@sveltejs/kit'
+import type { PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)

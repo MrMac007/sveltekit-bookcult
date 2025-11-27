@@ -53,28 +53,29 @@
 
 		{#if data.wishlistBooks.length > 0}
 			<div class="space-y-4">
-				{#each data.wishlistBooks as item (item.books.id)}
+				{#each data.wishlistBooks as item (item.books!.id)}
+					{@const book = item.books!}
 					<div class="relative">
 						<BookCard
 							book={{
-								id: item.books.id,
-								google_books_id: item.books.google_books_id,
-								title: item.books.title,
-								authors: item.books.authors,
-								cover_url: item.books.cover_url,
-								description: item.books.description,
-								published_date: item.books.published_date,
-								page_count: item.books.page_count,
-								categories: item.books.categories,
-								isbn_10: item.books.isbn_10,
-								isbn_13: item.books.isbn_13
+								id: book.id,
+								google_books_id: book.google_books_id,
+								title: book.title,
+								authors: book.authors,
+								cover_url: book.cover_url,
+								description: book.description,
+								published_date: book.published_date,
+								page_count: book.page_count,
+								categories: book.categories,
+								isbn_10: book.isbn_10,
+								isbn_13: book.isbn_13
 							}}
 							onMarkComplete={handleMarkComplete}
 							isInWishlist={true}
 						/>
 						<div class="mt-2">
 							<form method="POST" action="?/removeFromWishlist" use:enhance>
-								<input type="hidden" name="bookId" value={item.books.id} />
+								<input type="hidden" name="bookId" value={book.id} />
 								<button
 									type="submit"
 									class="text-sm text-destructive hover:underline"

@@ -1,5 +1,22 @@
 import { createClient } from '$lib/supabase/server'
-import { redirect, fail, type Actions, type PageServerLoad } from '@sveltejs/kit'
+import { redirect, fail } from '@sveltejs/kit'
+import type { PageServerLoad, Actions } from './$types'
+
+interface CurrentlyReadingItem {
+  id: string
+  started_at: string
+  group_id: string | null
+  books: {
+    id: string
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    cover_url: string | null
+    description: string | null
+    page_count: number | null
+    published_date: string | null
+  } | null
+}
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
@@ -38,7 +55,7 @@ export const load: PageServerLoad = async (event) => {
     console.error('Error fetching currently reading:', error)
   }
 
-  const items = currentlyReading?.filter((item) => item.books !== null) ?? []
+  const items = (currentlyReading as CurrentlyReadingItem[] | null)?.filter((item) => item.books !== null) ?? []
 
   return {
     currentlyReading: items,
@@ -113,7 +130,7 @@ export const actions: Actions = {
       const { error: insertError } = await supabase.from('completed_books').insert({
         user_id: user.id,
         book_id: bookId,
-      })
+      } as any)
 
       if (insertError) {
         throw insertError

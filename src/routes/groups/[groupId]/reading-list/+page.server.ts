@@ -3,6 +3,30 @@ import { error, redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import { findOrCreateBook } from '$lib/api/book-helpers'
 
+interface GroupBasic {
+  id: string
+  name: string
+  current_book_id: string | null
+}
+
+interface GroupBookItem {
+  id: string
+  added_at: string
+  books: {
+    id: string
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    cover_url: string | null
+    published_date: string | null
+    page_count: number | null
+  } | null
+}
+
+interface MembershipRole {
+  role: 'member' | 'admin'
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -27,6 +51,8 @@ export const load: PageServerLoad = async (event) => {
     throw error(404, 'Group not found')
   }
 
+  const typedGroup = group as GroupBasic
+
   // Check if user is admin
   const { data: membership } = await supabase
     .from('group_members')
@@ -35,7 +61,9 @@ export const load: PageServerLoad = async (event) => {
     .eq('user_id', user.id)
     .single()
 
-  if (!membership || membership.role !== 'admin') {
+  const typedMembership = membership as MembershipRole | null
+
+  if (!typedMembership || typedMembership.role !== 'admin') {
     throw error(403, 'Only admins can manage the reading list')
   }
 
@@ -60,20 +88,21 @@ export const load: PageServerLoad = async (event) => {
     .eq('group_id', groupId)
     .order('added_at', { ascending: false })
 
-  const books =
-    readingList
-      ?.filter((item: any) => item.books !== null)
-      .map((item: any) => ({
-        groupBookId: item.id,
-        addedAt: item.added_at,
-        ...item.books,
-      })) || []
+  const typedReadingList = (readingList || []) as unknown as GroupBookItem[]
+
+  const books = typedReadingList
+    .filter((item) => item.books !== null)
+    .map((item) => ({
+      groupBookId: item.id,
+      addedAt: item.added_at,
+      ...item.books,
+    }))
 
   return {
     group: {
-      id: group.id,
-      name: group.name,
-      currentBookId: group.current_book_id,
+      id: typedGroup.id,
+      name: typedGroup.name,
+      currentBookId: typedGroup.current_book_id,
     },
     books,
   }
@@ -100,7 +129,9 @@ export const actions: Actions = {
       .eq('user_id', user.id)
       .single()
 
-    if (!membership || membership.role !== 'admin') {
+    const typedMembership = membership as MembershipRole | null
+
+    if (!typedMembership || typedMembership.role !== 'admin') {
       return fail(403, { error: 'Only admins can add books' })
     }
 
@@ -109,7 +140,7 @@ export const actions: Actions = {
 
     try {
       // Find or create the book in the books table
-      const bookId = await findOrCreateBook(bookData)
+      const bookId = await findOrCreateBook(bookData, supabase)
       if (!bookId) {
         return fail(500, { error: 'Failed to create book' })
       }
@@ -119,7 +150,7 @@ export const actions: Actions = {
         group_id: groupId,
         book_id: bookId,
         added_by: user.id,
-      })
+      } as any)
 
       if (insertError) {
         if (insertError.code === '23505') {
@@ -155,7 +186,9 @@ export const actions: Actions = {
       .eq('user_id', user.id)
       .single()
 
-    if (!membership || membership.role !== 'admin') {
+    const typedMembership = membership as MembershipRole | null
+
+    if (!typedMembership || typedMembership.role !== 'admin') {
       return fail(403, { error: 'Only admins can remove books' })
     }
 
@@ -198,7 +231,9 @@ export const actions: Actions = {
       .eq('user_id', user.id)
       .single()
 
-    if (!membership || membership.role !== 'admin') {
+    const typedMembership = membership as MembershipRole | null
+
+    if (!typedMembership || typedMembership.role !== 'admin') {
       return fail(403, { error: 'Only admins can set current book' })
     }
 
@@ -206,7 +241,8 @@ export const actions: Actions = {
     const bookId = formData.get('bookId') as string
 
     try {
-      const { error: updateError } = await supabase
+      // Type assertion needed because Supabase types don't properly infer the groups table
+      const { error: updateError } = await (supabase as any)
         .from('groups')
         .update({ current_book_id: bookId })
         .eq('id', groupId)
@@ -214,8 +250,8 @@ export const actions: Actions = {
       if (updateError) throw updateError
 
       return { success: true, message: 'Current book updated' }
-    } catch (error) {
-      console.error('Error setting current book:', error)
+    } catch (err) {
+      console.error('Error setting current book:', err)
       return fail(500, { error: 'Failed to set current book' })
     }
   },

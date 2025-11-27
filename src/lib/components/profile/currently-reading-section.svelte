@@ -130,7 +130,7 @@
 												<form
 													method="POST"
 													action="/currently-reading?/remove"
-													on:submit={(e) => {
+													onsubmit={(e) => {
 														if (!confirm('Remove from currently reading?')) {
 															e.preventDefault();
 														}
@@ -206,7 +206,7 @@
 											<form
 												method="POST"
 												action="/currently-reading?/remove"
-												on:submit={(e) => {
+												onsubmit={(e) => {
 													if (!confirm('Remove from currently reading?')) {
 														e.preventDefault();
 													}
@@ -284,7 +284,7 @@
 												<form
 													method="POST"
 													action="/currently-reading?/remove"
-													on:submit={(e) => {
+													onsubmit={(e) => {
 														if (!confirm('Remove from currently reading?')) {
 															e.preventDefault();
 														}

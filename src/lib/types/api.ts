@@ -52,16 +52,16 @@ export interface Book {
 // Book card data type for UI components
 export interface BookCardData {
   id: string
-  google_books_id: string
+  google_books_id: string | null
   title: string
   authors: string[]
-  cover_url?: string
-  description?: string
-  published_date?: string
-  page_count?: number
-  categories?: string[]
-  isbn_10?: string
-  isbn_13?: string
+  cover_url?: string | null
+  description?: string | null
+  published_date?: string | null
+  page_count?: number | null
+  categories?: string[] | null
+  isbn_10?: string | null
+  isbn_13?: string | null
 }
 
 // Open Library API types

@@ -8,4 +8,4 @@
 	let { class: className, ...restProps }: Props = $props();
 </script>
 
-<div data-slot="skeleton" class={cn('bg-accent animate-pulse rounded-md', className)} {...restProps} />
+<div data-slot="skeleton" class={cn('bg-accent animate-pulse rounded-md', className)} {...restProps}></div>

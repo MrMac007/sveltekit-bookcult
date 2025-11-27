@@ -2,9 +2,11 @@
 	import { Separator as SeparatorPrimitive } from 'bits-ui';
 	import { cn } from '$lib/utils';
 
-	type Props = SeparatorPrimitive.Props & {
+	interface Props {
 		class?: string;
-	};
+		orientation?: 'horizontal' | 'vertical';
+		decorative?: boolean;
+	}
 
 	let {
 		class: className,

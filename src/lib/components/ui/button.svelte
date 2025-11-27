@@ -1,7 +1,7 @@
 <script lang="ts">
   import { cn } from '$lib/utils';
 
-  type ButtonVariant = 'default' | 'outline' | 'ghost' | 'destructive';
+  type ButtonVariant = 'default' | 'outline' | 'ghost' | 'destructive' | 'secondary';
   type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
   interface Props {
@@ -14,6 +14,7 @@
     href?: string;
     rel?: string;
     target?: string;
+    title?: string;
     children: import('svelte').Snippet;
   }
 
@@ -27,10 +28,11 @@
     href,
     rel,
     target,
+    title,
     children
   }: Props = $props();
 
-  const variants = {
+  const variants: Record<ButtonVariant, string> = {
     default:
       'bg-primary text-primary-foreground hover:bg-primary/90',
     outline:
@@ -38,10 +40,12 @@
     ghost:
       'bg-transparent text-foreground hover:bg-muted/40',
     destructive:
-      'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-300/60'
+      'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-300/60',
+    secondary:
+      'bg-secondary text-secondary-foreground hover:bg-secondary/80'
   };
 
-  const sizes = {
+  const sizes: Record<ButtonSize, string> = {
     default: 'h-10 px-4 py-2',
     sm: 'h-8 px-3 text-xs',
     lg: 'h-11 px-6',
@@ -49,25 +53,41 @@
   };
 </script>
 
-<svelte:element
-  this={href ? 'a' : 'button'}
-  type={href ? undefined : type}
-  disabled={href ? undefined : disabled}
-  aria-disabled={href && disabled ? 'true' : undefined}
-  tabindex={href && disabled ? -1 : undefined}
-  href={href}
-  rel={href ? rel : undefined}
-  target={href ? target : undefined}
-  on:click={onclick}
-  class={cn(
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-    'disabled:pointer-events-none disabled:opacity-50',
-    href && disabled ? 'pointer-events-none opacity-50' : undefined,
-    variants[variant],
-    sizes[size],
-    className
-  )}
->
-  {@render children()}
-</svelte:element>
+{#if href}
+  <a
+    {href}
+    {rel}
+    {target}
+    {title}
+    role={disabled ? undefined : 'link'}
+    aria-disabled={disabled ? 'true' : undefined}
+    tabindex={disabled ? -1 : undefined}
+    class={cn(
+      'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+      disabled ? 'pointer-events-none opacity-50' : undefined,
+      variants[variant],
+      sizes[size],
+      className
+    )}
+  >
+    {@render children()}
+  </a>
+{:else}
+  <button
+    {type}
+    {disabled}
+    {title}
+    {onclick}
+    class={cn(
+      'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+      'disabled:pointer-events-none disabled:opacity-50',
+      variants[variant],
+      sizes[size],
+      className
+    )}
+  >
+    {@render children()}
+  </button>
+{/if}

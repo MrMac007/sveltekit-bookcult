@@ -30,11 +30,13 @@
 
 					if (result.type === 'success') {
 						// Redirect will be handled by the server action
-						if (result.data?.groupId) {
-							goto(`/groups/${result.data.groupId}`);
+						const data = result.data as { groupId?: string } | undefined;
+						if (data?.groupId) {
+							goto(`/groups/${data.groupId}`);
 						}
 					} else if (result.type === 'failure') {
-						errorMessage = result.data?.error || 'Failed to join group';
+						const data = result.data as { error?: string } | undefined;
+						errorMessage = data?.error || 'Failed to join group';
 					}
 				};
 			}}

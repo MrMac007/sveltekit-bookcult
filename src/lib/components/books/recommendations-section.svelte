@@ -94,7 +94,8 @@
 				.eq('google_books_id', googleBooksId)
 				.single();
 
-			let dbBookId = existingBook?.id;
+			const typedExisting = existingBook as { id: string } | null;
+			let dbBookId = typedExisting?.id;
 
 			if (!dbBookId) {
 				const response = await fetch(`/api/books/fetch?id=${googleBooksId}`);
@@ -108,7 +109,7 @@
 
 			const { error: insertError } = await supabase
 				.from('wishlists')
-				.insert({ user_id: user.id, book_id: dbBookId });
+				.insert({ user_id: user.id, book_id: dbBookId } as any);
 
 			if (insertError && insertError.code !== '23505') {
 				throw insertError;
@@ -294,7 +295,7 @@
 								}`}
 								onclick={() => handleThumbnailClick(index)}
 								aria-label={`Go to recommendation ${index + 1}`}
-							/>
+							></button>
 						{/each}
 					</div>
 				</div>

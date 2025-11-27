@@ -2,6 +2,45 @@ import { createClient } from '$lib/supabase/server'
 import { redirect } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
 
+interface BookData {
+  id: string
+  google_books_id: string | null
+  title: string
+  authors: string[]
+  cover_url: string | null
+  description: string | null
+  published_date: string | null
+  page_count: number | null
+  categories: string[]
+  isbn_10: string | null
+  isbn_13: string | null
+}
+
+interface WishlistItem {
+  id: string
+  added_at: string
+  books: BookData | null
+}
+
+interface CurrentlyReadingItem {
+  id: string
+  started_at: string
+  books: BookData | null
+}
+
+interface CompletedBookItem {
+  id: string
+  completed_at: string
+  books: BookData | null
+}
+
+interface RatingData {
+  book_id: string
+  rating: number
+  review: string | null
+  created_at: string
+}
+
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
 
@@ -43,7 +82,8 @@ export const load: PageServerLoad = async (event) => {
   }
 
   // Filter out any items where books is null
-  const validWishlistBooks = wishlistBooks?.filter((item: any) => item.books !== null) || []
+  const typedWishlist = (wishlistBooks || []) as unknown as WishlistItem[]
+  const validWishlistBooks = typedWishlist.filter((item) => item.books !== null)
 
   // Get currently reading books
   const { data: currentlyReading, error: currentlyReadingError } = await supabase
@@ -74,7 +114,8 @@ export const load: PageServerLoad = async (event) => {
     console.error('Error fetching currently reading:', currentlyReadingError)
   }
 
-  const validCurrentlyReading = currentlyReading?.filter((item: any) => item.books !== null) || []
+  const typedCurrentlyReading = (currentlyReading || []) as unknown as CurrentlyReadingItem[]
+  const validCurrentlyReading = typedCurrentlyReading.filter((item) => item.books !== null)
 
   // Get completed books with ratings
   const { data: completedBooks, error: completedBooksError } = await supabase
@@ -105,21 +146,24 @@ export const load: PageServerLoad = async (event) => {
     console.error('Error fetching completed books:', completedBooksError)
   }
 
-  const validCompletedBooks = completedBooks?.filter((item: any) => item.books !== null) || []
+  const typedCompleted = (completedBooks || []) as unknown as CompletedBookItem[]
+  const validCompletedBooks = typedCompleted.filter((item) => item.books !== null)
 
   // Get ratings for completed books
-  const completedBookIds = validCompletedBooks.map((cb: any) => cb.books.id)
+  const completedBookIds = validCompletedBooks.map((cb) => cb.books!.id)
   const { data: ratings } = await supabase
     .from('ratings')
     .select('book_id, rating, review, created_at')
     .eq('user_id', user.id)
     .in('book_id', completedBookIds.length > 0 ? completedBookIds : [''])
 
+  const typedRatings = (ratings || []) as RatingData[]
+
   // Map ratings to completed books
-  const ratingsMap = new Map(ratings?.map((r) => [r.book_id, r]) || [])
-  const completedWithRatings = validCompletedBooks.map((cb: any) => ({
+  const ratingsMap = new Map(typedRatings.map((r) => [r.book_id, r]))
+  const completedWithRatings = validCompletedBooks.map((cb) => ({
     ...cb,
-    rating: ratingsMap.get(cb.books.id) || null,
+    rating: ratingsMap.get(cb.books!.id) || null,
   }))
 
   return {

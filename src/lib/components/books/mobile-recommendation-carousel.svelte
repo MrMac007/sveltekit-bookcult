@@ -162,7 +162,7 @@ $effect(() => {
 					}`}
 					onclick={() => (currentIndex = index)}
 					aria-label={`Go to recommendation ${index + 1}`}
-				/>
+				></button>
 			{/each}
 		</div>
 	</div>

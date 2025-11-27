@@ -6,17 +6,17 @@
 	import { invalidateAll } from '$app/navigation';
 
 	interface Book {
-		id: string;
-		groupBookId: string;
-		google_books_id: string | null;
-		title: string;
-		authors: string[] | null;
-		cover_url: string | null;
-		description: string | null;
-		published_date: string | null;
-		page_count: number | null;
+		id?: string;
+		groupBookId?: string;
+		google_books_id?: string | null;
+		title?: string;
+		authors?: string[] | null;
+		cover_url?: string | null;
+		description?: string | null;
+		published_date?: string | null;
+		page_count?: number | null;
 		displayOrder: number | null;
-		addedAt: string;
+		addedAt?: string;
 	}
 
 	interface Props {
@@ -33,19 +33,19 @@
 	let isSaving = $state(false);
 	let hasUnsavedChanges = $state(false);
 	let justSaved = $state(false);
-	let originalOrder = $state<string[]>(books.map(b => b.groupBookId));
+	let originalOrder = $state<string[]>(books.map(b => b.groupBookId).filter((id): id is string => !!id));
 
 	// Update sortedBooks when books prop changes from server
 	$effect(() => {
 		if (draggedIndex === null && !isSaving) {
 			// Check if the book IDs have changed (not just reordered)
-			const currentIds = books.map(b => b.groupBookId).sort().join(',');
-			const sortedIds = sortedBooks.map(b => b.groupBookId).sort().join(',');
+			const currentIds = books.map(b => b.groupBookId).filter(Boolean).sort().join(',');
+			const sortedIds = sortedBooks.map(b => b.groupBookId).filter(Boolean).sort().join(',');
 			
 			// Only update if books were added/removed, not if just reordered
 			if (currentIds !== sortedIds) {
 				sortedBooks = [...books];
-				originalOrder = books.map(b => b.groupBookId);
+				originalOrder = books.map(b => b.groupBookId).filter((id): id is string => !!id);
 				hasUnsavedChanges = false;
 			}
 		}
@@ -123,7 +123,7 @@
 			
 			if (response.ok) {
 				// Update the original order to match current
-				originalOrder = sortedBooks.map(b => b.groupBookId);
+				originalOrder = sortedBooks.map(b => b.groupBookId).filter((id): id is string => !!id);
 				hasUnsavedChanges = false;
 				justSaved = true;
 				

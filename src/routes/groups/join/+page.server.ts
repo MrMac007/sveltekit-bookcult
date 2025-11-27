@@ -51,25 +51,27 @@ export const actions: Actions = {
         return fail(404, { error: 'Invalid invite code' })
       }
 
+      const typedGroup = group as { id: string }
+
       // Check if already a member
       const { data: existing } = await supabase
         .from('group_members')
         .select('id')
-        .eq('group_id', group.id)
+        .eq('group_id', typedGroup.id)
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (existing) {
         // Already a member, just redirect
-        throw redirect(303, `/groups/${group.id}`)
+        throw redirect(303, `/groups/${typedGroup.id}`)
       }
 
       // Add user to group
       const { error: memberError } = await supabase.from('group_members').insert({
-        group_id: group.id,
+        group_id: typedGroup.id,
         user_id: user.id,
         role: 'member',
-      })
+      } as any)
 
       if (memberError) {
         console.error('Member insert error:', memberError)
@@ -77,7 +79,7 @@ export const actions: Actions = {
       }
 
       // Redirect to group page
-      throw redirect(303, `/groups/${group.id}`)
+      throw redirect(303, `/groups/${typedGroup.id}`)
     } catch (error) {
       if (error instanceof Response) throw error // Re-throw redirects
       console.error('Error joining group:', error)
