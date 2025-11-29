@@ -6,6 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type WallStyle = 'sticky-notes' | 'typewriter' | 'constellation'
+
 export interface Database {
   public: {
     Tables: {
@@ -16,6 +18,7 @@ export interface Database {
           display_name: string | null
           avatar_url: string | null
           bio: string | null
+          wall_style: WallStyle
           created_at: string
           updated_at: string
         }
@@ -25,6 +28,7 @@ export interface Database {
           display_name?: string | null
           avatar_url?: string | null
           bio?: string | null
+          wall_style?: WallStyle
           created_at?: string
           updated_at?: string
         }
@@ -34,6 +38,7 @@ export interface Database {
           display_name?: string | null
           avatar_url?: string | null
           bio?: string | null
+          wall_style?: WallStyle
           created_at?: string
           updated_at?: string
         }
@@ -355,6 +360,58 @@ export interface Database {
           last_auto_refresh_at?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      user_quotes: {
+        Row: {
+          id: string
+          user_id: string
+          book_id: string
+          quote_text: string
+          page_number: number | null
+          display_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          book_id: string
+          quote_text: string
+          page_number?: number | null
+          display_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          book_id?: string
+          quote_text?: string
+          page_number?: number | null
+          display_order?: number
+          created_at?: string
+        }
+      }
+      favorite_books: {
+        Row: {
+          id: string
+          user_id: string
+          book_id: string
+          display_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          book_id: string
+          display_order: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          book_id?: string
+          display_order?: number
+          created_at?: string
         }
       }
     }

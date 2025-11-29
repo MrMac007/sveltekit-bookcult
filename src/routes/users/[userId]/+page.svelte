@@ -3,11 +3,15 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import FollowButton from '$lib/components/profile/follow-button.svelte';
+	import QuoteWall from '$lib/components/profile/quote-wall.svelte';
 	import { StarRating } from '$lib/components/ui/star-rating';
 	import { Users, BookMarked, BookCheck, Star, BookOpen } from 'lucide-svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// Check if user has any quote wall content
+	const hasQuoteWallContent = data.userQuotes.length > 0 || data.favoriteBooks.length > 0;
 </script>
 
 <AppLayout title={data.profile.display_name || data.profile.username}>
@@ -68,6 +72,15 @@
 				</CardContent>
 			</Card>
 		</div>
+
+		<!-- Quote Wall Section (only shown if user has content) -->
+		{#if hasQuoteWallContent}
+			<QuoteWall
+				quotes={data.userQuotes}
+				favoriteBooks={data.favoriteBooks}
+				wallStyle={data.wallStyle}
+			/>
+		{/if}
 
 		<div class="grid gap-6 lg:grid-cols-2">
 			<Card>

@@ -2,7 +2,7 @@ import { followUser, unfollowUser } from '$lib/actions/follows'
 import { createClient } from '$lib/supabase/server'
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import type { Database } from '$lib/types/database'
+import type { Database, WallStyle } from '$lib/types/database'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -37,6 +37,20 @@ interface CurrentlyReadingWithBook {
   id: string
   started_at: string
   books: (BookBasic & { google_books_id: string | null }) | null
+}
+
+interface UserQuoteWithBook {
+  id: string
+  quote_text: string
+  page_number: number | null
+  display_order: number
+  books: BookBasic | null
+}
+
+interface FavoriteBookWithDetails {
+  id: string
+  display_order: number
+  books: BookBasic | null
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -85,6 +99,8 @@ export const load: PageServerLoad = async (event) => {
     { data: wishlistBooks },
     { data: completedBooks },
     { data: currentlyReading },
+    { data: userQuotes },
+    { data: favoriteBooks },
   ] = await Promise.all([
     supabase.from('wishlists').select('*', { head: true, count: 'exact' }).eq('user_id', userId),
     supabase.from('completed_books').select('*', { head: true, count: 'exact' }).eq('user_id', userId),
@@ -160,12 +176,69 @@ export const load: PageServerLoad = async (event) => {
       .eq('user_id', userId)
       .order('started_at', { ascending: false })
       .limit(10),
+    supabase
+      .from('user_quotes')
+      .select(
+        `
+        id,
+        quote_text,
+        page_number,
+        display_order,
+        books:book_id (
+          id,
+          title,
+          authors,
+          cover_url
+        )
+      `
+      )
+      .eq('user_id', userId)
+      .order('display_order', { ascending: true })
+      .limit(10),
+    supabase
+      .from('favorite_books')
+      .select(
+        `
+        id,
+        display_order,
+        books:book_id (
+          id,
+          title,
+          authors,
+          cover_url
+        )
+      `
+      )
+      .eq('user_id', userId)
+      .order('display_order', { ascending: true })
+      .limit(3),
   ])
 
   const typedRatings = (recentRatings || []) as unknown as RatingWithBook[]
   const typedWishlist = (wishlistBooks || []) as unknown as WishlistWithBook[]
   const typedCompleted = (completedBooks || []) as unknown as CompletedWithBook[]
   const typedReading = (currentlyReading || []) as unknown as CurrentlyReadingWithBook[]
+  const typedQuotes = (userQuotes || []) as unknown as UserQuoteWithBook[]
+  const typedFavorites = (favoriteBooks || []) as unknown as FavoriteBookWithDetails[]
+
+  // Transform quotes to expected format
+  const quotesWithBooks = typedQuotes
+    .filter((q) => q.books !== null)
+    .map((q) => ({
+      id: q.id,
+      quote_text: q.quote_text,
+      page_number: q.page_number,
+      book: q.books!,
+    }))
+
+  // Transform favorites to expected format
+  const favoriteBooksWithDetails = typedFavorites
+    .filter((f) => f.books !== null)
+    .map((f) => ({
+      id: f.id,
+      display_order: f.display_order,
+      book: f.books!,
+    }))
 
   return {
     profile: profile as Profile,
@@ -179,6 +252,9 @@ export const load: PageServerLoad = async (event) => {
     wishlistBooks: typedWishlist.filter((w) => w.books !== null),
     completedBooks: typedCompleted.filter((c) => c.books !== null),
     currentlyReading: typedReading.filter((c) => c.books !== null),
+    userQuotes: quotesWithBooks,
+    favoriteBooks: favoriteBooksWithDetails,
+    wallStyle: (profile.wall_style || 'sticky-notes') as WallStyle,
   }
 }
 
