@@ -110,8 +110,13 @@
 			}
 
 			const apiResults = (await response.json()) as BookCardData[];
-			const existingIds = new Set(searchResults.map((book) => book.google_books_id));
-			const newResults = apiResults.filter((book) => !existingIds.has(book.google_books_id));
+			// Deduplicate by both Google Books ID and Open Library key
+			const existingGoogleIds = new Set(searchResults.map((book) => book.google_books_id).filter(Boolean));
+			const existingOLKeys = new Set(searchResults.map((book) => book.open_library_key).filter(Boolean));
+			const newResults = apiResults.filter((book) =>
+				!(book.google_books_id && existingGoogleIds.has(book.google_books_id)) &&
+				!(book.open_library_key && existingOLKeys.has(book.open_library_key))
+			);
 			searchResults = [...searchResults, ...newResults];
 			hasShownApiResults = true;
 		} catch (error) {
@@ -184,6 +189,27 @@
 			return book.id;
 		}
 
+		// Try Open Library key first
+		if (book.open_library_key) {
+			const { data: existing } = await supabase
+				.from('books')
+				.select('id')
+				.eq('open_library_key', book.open_library_key)
+				.single();
+
+			const typedExisting = existing as { id: string } | null;
+			if (typedExisting?.id) {
+				return typedExisting.id;
+			}
+
+			const response = await fetch(`/api/books/fetch?id=${book.open_library_key}&source=openlib`);
+			if (response.ok) {
+				const payload = await response.json();
+				if (payload?.id) return payload.id;
+			}
+		}
+
+		// Fall back to Google Books ID
 		if (book.google_books_id) {
 			const { data: existing } = await supabase
 				.from('books')
@@ -203,6 +229,15 @@
 
 			const payload = await response.json();
 			return payload?.id ?? null;
+		}
+
+		// Last resort: try the book.id as Open Library key (format: OL12345W)
+		if (book.id && /^OL\d+[WM]$/.test(book.id)) {
+			const response = await fetch(`/api/books/fetch?id=${book.id}&source=openlib`);
+			if (response.ok) {
+				const payload = await response.json();
+				if (payload?.id) return payload.id;
+			}
 		}
 
 		return null;
@@ -343,13 +378,14 @@
 			<h2 class="text-lg font-semibold">
 				Found {searchResults.length} {searchResults.length === 1 ? 'book' : 'books'}
 			</h2>
-			{#each searchResults as book (book.google_books_id || book.id)}
+			{#each searchResults as book (book.google_books_id || book.open_library_key || book.id)}
 				<BookCard
 					{book}
 					onAddToWishlist={handleAddToWishlist}
 					onMarkComplete={handleMarkComplete}
 					isInWishlist={book.google_books_id ? userWishlist.has(book.google_books_id) : false}
 					isCompleted={book.google_books_id ? userCompleted.has(book.google_books_id) : false}
+					showSource={true}
 				/>
 			{/each}
 
@@ -368,7 +404,7 @@
 								Loading more results...
 							</span>
 						{:else}
-							<span>Show More from Google Books</span>
+							<span>Search Online for More</span>
 						{/if}
 					</Button>
 				</div>

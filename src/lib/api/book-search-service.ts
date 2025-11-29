@@ -37,7 +37,7 @@ export interface UnifiedBook {
 	cover_url?: string;
 	categories: string[];
 	language?: string;
-	source: 'openlib' | 'google';
+	source: 'openlib' | 'google' | 'database';
 	popularity_score?: number;
 }
 

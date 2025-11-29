@@ -64,6 +64,8 @@ export interface BookCardData {
   categories?: string[] | null
   isbn_10?: string | null
   isbn_13?: string | null
+  /** Source of the book data - for debugging/testing */
+  source?: 'openlib' | 'google' | 'database'
 }
 
 // Re-export Open Library types from the API module

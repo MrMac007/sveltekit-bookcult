@@ -12,6 +12,7 @@
 		onMarkComplete?: (book: BookCardData) => void;
 		isInWishlist?: boolean;
 		isCompleted?: boolean;
+		showSource?: boolean;
 	}
 
 	let {
@@ -19,8 +20,38 @@
 		onAddToWishlist,
 		onMarkComplete,
 		isInWishlist = false,
-		isCompleted = false
+		isCompleted = false,
+		showSource = false
 	}: Props = $props();
+
+	// Determine source for display
+	const displaySource = $derived(() => {
+		if (book.source) return book.source;
+		// Infer from available IDs if source not set
+		if (book.open_library_key && !book.google_books_id) return 'openlib';
+		if (book.google_books_id && !book.open_library_key) return 'google';
+		return 'database';
+	});
+
+	const sourceLabel = $derived(() => {
+		const src = displaySource();
+		switch (src) {
+			case 'openlib': return 'Open Library';
+			case 'google': return 'Google Books';
+			case 'database': return 'Database';
+			default: return src;
+		}
+	});
+
+	const sourceColor = $derived(() => {
+		const src = displaySource();
+		switch (src) {
+			case 'openlib': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+			case 'google': return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+			case 'database': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+			default: return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+		}
+	});
 </script>
 
 <Card class="overflow-hidden">
@@ -39,11 +70,18 @@
 
 			<!-- Book Details -->
 			<div class="flex flex-1 flex-col">
-				<a href="/book/{book.id}">
-					<h3 class="page-heading line-clamp-2 text-base transition-colors hover:text-primary">
-						{book.title}
-					</h3>
-				</a>
+				<div class="flex items-start justify-between gap-2">
+					<a href="/book/{book.id}" class="flex-1">
+						<h3 class="page-heading line-clamp-2 text-base transition-colors hover:text-primary">
+							{book.title}
+						</h3>
+					</a>
+					{#if showSource}
+						<span class="shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide {sourceColor()}">
+							{sourceLabel()}
+						</span>
+					{/if}
+				</div>
 				{#if book.authors && book.authors.length > 0}
 					<p class="mt-1 text-sm text-muted-foreground">
 						{book.authors.join(', ')}

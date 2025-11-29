@@ -117,7 +117,7 @@ function formatDatabaseResults(books: any[]): UnifiedBook[] {
 		cover_url: book.cover_url,
 		categories: book.categories || [],
 		language: book.language,
-		source: 'openlib' as const // Database records are treated as canonical
+		source: 'database' as const // Mark as from database for debugging
 	}));
 }
 
