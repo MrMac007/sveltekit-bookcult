@@ -256,64 +256,54 @@
 								</CardContent>
 							</Card>
 						{:else}
-							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							<div class="grid grid-cols-3 gap-2 sm:gap-4">
 								{#each [1, 2, 3] as slot}
 									{@const slotIndex = slot - 1}
 									{@const selectedBookId = selectedFavorites[slotIndex]}
 									{@const selectedBook = selectedBookId ? getBookById(selectedBookId) : null}
 									
-									<div class="group relative flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md">
+									<div class="group relative flex flex-col gap-2 rounded-xl border bg-card p-2 shadow-sm transition-all hover:shadow-md">
 										<div class="flex items-center justify-between">
-											<div class="flex items-center gap-2">
-												<div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+											<div class="flex items-center gap-1.5">
+												<div class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
 													{slot}
 												</div>
-												<span class="text-xs font-medium text-muted-foreground">Slot {slot}</span>
+												<span class="hidden sm:inline text-xs font-medium text-muted-foreground">Slot {slot}</span>
 											</div>
 											{#if selectedBook}
 												<button
 													type="button"
-													class="text-muted-foreground hover:text-destructive transition-colors"
+													class="text-muted-foreground hover:text-destructive transition-colors p-1 -mr-1"
 													onclick={() => {
 														const newFavs = [...selectedFavorites];
 														newFavs[slotIndex] = null;
 														selectedFavorites = newFavs;
 													}}
 												>
-													<X class="h-4 w-4" />
+													<X class="h-3.5 w-3.5" />
 													<span class="sr-only">Clear slot</span>
 												</button>
 											{/if}
 										</div>
 
-										<div class="relative flex-1 min-h-[160px] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center text-center p-4 transition-colors hover:border-primary/50 hover:bg-muted/50">
+										<div class="relative flex-1 aspect-[2/3] min-h-0 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center text-center p-1 transition-colors hover:border-primary/50 hover:bg-muted/50 overflow-hidden">
 											{#if selectedBook}
-												<div class="relative z-10 flex flex-col items-center gap-2">
+												<div class="relative z-10 flex flex-col items-center w-full h-full">
 													{#if selectedBook.cover_url}
 														<img 
 															src={selectedBook.cover_url} 
 															alt="" 
-															class="h-24 w-16 rounded shadow-sm object-cover"
+															class="w-full h-full object-cover rounded"
 														/>
 													{:else}
-														<div class="h-24 w-16 rounded bg-muted border flex items-center justify-center">
+														<div class="w-full h-full rounded bg-muted border flex items-center justify-center">
 															<BookOpen class="h-6 w-6 text-muted-foreground/50" />
 														</div>
 													{/if}
-													<div class="w-full px-2">
-														<p class="text-sm font-medium leading-tight line-clamp-2 text-foreground">
-															{selectedBook.title}
-														</p>
-														{#if selectedBook.authors.length > 0}
-															<p class="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-																{selectedBook.authors[0]}
-															</p>
-														{/if}
-													</div>
 												</div>
 											{:else}
-												<Plus class="h-8 w-8 text-muted-foreground/40 mb-2" />
-												<span class="text-sm text-muted-foreground font-medium">Select Book</span>
+												<Plus class="h-6 w-6 text-muted-foreground/40 mb-1" />
+												<span class="text-[10px] leading-tight text-muted-foreground font-medium sm:text-xs">Select</span>
 											{/if}
 											
 											<select
@@ -323,23 +313,38 @@
 												onchange={(e) => {
 													const newValue = e.currentTarget.value || null;
 													const newFavs = [...selectedFavorites];
-													// If book is already selected in another slot, clear that slot? 
-													// Or just allow the swap? 
-													// The UI prevents selecting disabled options, so swapping is tricky.
-													// For now, just set it.
-													newFavs[slotIndex] = newValue;
+													
+													// Check if this book is already selected in another slot
+													const existingIndex = newFavs.indexOf(newValue);
+													
+													if (existingIndex !== -1 && existingIndex !== slotIndex && newValue !== null) {
+														// Swap the books if it's already selected elsewhere
+														newFavs[existingIndex] = newFavs[slotIndex];
+														newFavs[slotIndex] = newValue;
+													} else {
+														// Just set it if not selected elsewhere
+														newFavs[slotIndex] = newValue;
+													}
+													
 													selectedFavorites = newFavs;
 												}}
 											>
 												<option value="">Select a book...</option>
 												{#each availableBooks as book (book.id)}
-													{@const isSelectedElsewhere = selectedFavorites.includes(book.id) && selectedFavorites[slotIndex] !== book.id}
-													<option value={book.id} disabled={isSelectedElsewhere}>
-														{book.title} {book.authors.length > 0 ? `by ${book.authors[0]}` : ''}
+													<option value={book.id}>
+														{book.title}
 													</option>
 												{/each}
 											</select>
 										</div>
+										
+										{#if selectedBook}
+											<div class="text-center px-0.5 pb-1 hidden sm:block">
+												<p class="text-xs font-medium leading-tight line-clamp-1 text-foreground">
+													{selectedBook.title}
+												</p>
+											</div>
+										{/if}
 									</div>
 								{/each}
 							</div>
