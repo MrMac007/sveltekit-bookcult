@@ -8,31 +8,47 @@ interface DbBookId {
   id: string
 }
 
-export const GET: RequestHandler = async (event) => {
-  const googleBooksId = event.url.searchParams.get('id')
+/**
+ * Check if an ID is an Open Library key (e.g., OL12345W)
+ */
+function isOpenLibraryKey(id: string): boolean {
+  return /^OL\d+[WM]$/.test(id)
+}
 
-  if (!googleBooksId) {
-    return json({ error: 'Google Books ID is required' }, { status: 400 })
+export const GET: RequestHandler = async (event) => {
+  const bookId = event.url.searchParams.get('id')
+  const source = event.url.searchParams.get('source') // 'openlib' or 'google' (auto-detected if not specified)
+
+  if (!bookId) {
+    return json({ error: 'Book ID is required' }, { status: 400 })
   }
 
   const supabase = createClient(event)
 
   try {
-    const book = (await getOrFetchBook(googleBooksId, supabase)) as any
+    // Detect source from ID format if not specified
+    const detectedSource = (source || (isOpenLibraryKey(bookId) ? 'openlib' : 'google')) as 'openlib' | 'google'
+
+    const book = (await getOrFetchBook(bookId, supabase, detectedSource)) as any
 
     if (!book) {
-      return json({ error: 'Book not found in Google Books' }, { status: 404 })
+      return json({ error: 'Book not found' }, { status: 404 })
     }
 
     if (book.id && isValidUUID(book.id)) {
       return json(book)
     }
 
-    const { data: dbBook, error } = await supabase
-      .from('books')
-      .select('id')
-      .eq('google_books_id', googleBooksId)
-      .single()
+    // Try to find in database by the appropriate key
+    let dbQuery = supabase.from('books').select('id')
+
+    if (detectedSource === 'openlib') {
+      dbQuery = dbQuery.eq('open_library_key', bookId)
+    } else {
+      dbQuery = dbQuery.eq('google_books_id', bookId)
+    }
+
+    const { data: dbBook, error } = await dbQuery.single()
 
     if (error || !dbBook) {
       console.error('[API] Database query error:', error?.message)

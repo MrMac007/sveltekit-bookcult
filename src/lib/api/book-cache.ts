@@ -1,11 +1,14 @@
 // @ts-nocheck
 import { googleBooksAPI } from './google-books';
+import { openLibraryAPI } from './open-library';
 import type { Book } from '$lib/types/api';
 import { enhanceBookMetadata, validateEnhancedMetadata } from '$lib/ai/book-enhancer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/types/database';
 
 const CACHE_EXPIRY_DAYS = 30;
+
+type BookSource = 'google' | 'openlib';
 
 /**
  * Check if cached book data is stale
@@ -63,16 +66,32 @@ async function enhanceBookIfNeeded(book: Book): Promise<Partial<Book> | null> {
 
 /**
  * Get book from cache or API
+ * Supports both Google Books IDs and Open Library keys
  * Checks for existing books by ISBN first to avoid duplicates
  */
 export async function getOrFetchBook(
-	googleBooksId: string,
-	supabase: SupabaseClient<Database>
+	bookId: string,
+	supabase: SupabaseClient<Database>,
+	source: BookSource = 'google'
 ): Promise<Book | null> {
-	// Fetch from API first to get ISBN information
 	try {
-		const volume = await googleBooksAPI.getBookById(googleBooksId);
-		const book = googleBooksAPI.normalizeVolume(volume);
+		let book: any;
+
+		// Fetch from appropriate API
+		if (source === 'openlib') {
+			const olBook = await openLibraryAPI.getBookDetails(bookId);
+			if (!olBook) {
+				console.error('[book-cache] Open Library book not found:', bookId);
+				return null;
+			}
+			book = {
+				...olBook,
+				google_books_id: null // Will be filled if we find a match
+			};
+		} else {
+			const volume = await googleBooksAPI.getBookById(bookId);
+			book = googleBooksAPI.normalizeVolume(volume);
+		}
 
 		// Try to find existing book by ISBN first (deduplication)
 		let existingBook = null;
@@ -103,12 +122,13 @@ export async function getOrFetchBook(
 			existingBook = data;
 		}
 
-		// Fall back to google_books_id check
-		if (!existingBook) {
+		// Check by Open Library key
+		if (!existingBook && (source === 'openlib' || book.open_library_key)) {
+			const olKey = book.open_library_key || bookId;
 			const { data } = await supabase
 				.from('books')
 				.select('*')
-				.eq('google_books_id', googleBooksId)
+				.eq('open_library_key', olKey)
 				.single();
 
 			if (data && !isStale(data.last_updated)) {
@@ -117,12 +137,33 @@ export async function getOrFetchBook(
 			existingBook = data;
 		}
 
-		// Check if this is a new book (not in existingBook)
+		// Fall back to google_books_id check
+		if (!existingBook && (source === 'google' || book.google_books_id)) {
+			const gbId = book.google_books_id || bookId;
+			const { data } = await supabase
+				.from('books')
+				.select('*')
+				.eq('google_books_id', gbId)
+				.single();
+
+			if (data && !isStale(data.last_updated)) {
+				return data;
+			}
+			existingBook = data;
+		}
+
+		// Check if this is a new book
 		const isNewBook = !existingBook;
 
-		// Update or insert in cache (upsert by google_books_id to avoid duplicates there)
-		// Remove fields that don't exist in the database schema or should be auto-generated
-		const { id: _, averageRating, ratingsCount, ...bookData } = book;
+		// Remove fields that don't exist in the database schema
+		const { id: _, averageRating, ratingsCount, popularity_score, edition_count, matchScore, ...bookData } = book;
+
+		// Set the appropriate external ID
+		if (source === 'openlib') {
+			bookData.open_library_key = bookId;
+		} else {
+			bookData.google_books_id = bookId;
+		}
 
 		// If this is a new book, enhance it with AI
 		let enhancedData: Partial<Book> | null = null;
@@ -130,16 +171,19 @@ export async function getOrFetchBook(
 			enhancedData = await enhanceBookIfNeeded(book);
 		}
 
+		// Determine conflict column based on source
+		const conflictColumn = source === 'openlib' ? 'open_library_key' : 'google_books_id';
+
 		const { data: upsertedBook, error: upsertError } = await supabase
 			.from('books')
 			.upsert(
 				{
 					...bookData,
-					...(enhancedData || {}), // Apply AI enhancements if available
+					...(enhancedData || {}),
 					last_updated: new Date().toISOString()
 				},
 				{
-					onConflict: 'google_books_id'
+					onConflict: conflictColumn
 				}
 			)
 			.select()
@@ -159,21 +203,18 @@ export async function getOrFetchBook(
 			}
 			return upsertedBook;
 		} else {
-			console.warn(
-				'[book-cache] Upsert returned null, falling back to normalized book with Google Books ID:',
-				book.id
-			);
+			console.warn('[book-cache] Upsert returned null, falling back to normalized book');
 			return book;
 		}
 	} catch (error) {
 		console.error('Error fetching book from API:', error);
-		// If API fails, try to get from cache by google_books_id
-		const { data: cachedBook } = await supabase
-			.from('books')
-			.select('*')
-			.eq('google_books_id', googleBooksId)
-			.single();
 
+		// If API fails, try to get from cache
+		const cacheQuery = source === 'openlib'
+			? supabase.from('books').select('*').eq('open_library_key', bookId)
+			: supabase.from('books').select('*').eq('google_books_id', bookId);
+
+		const { data: cachedBook } = await cacheQuery.single();
 		return cachedBook || null;
 	}
 }

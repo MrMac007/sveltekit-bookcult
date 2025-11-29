@@ -33,6 +33,7 @@ export interface GoogleBooksResponse {
 export interface Book {
   id?: string
   google_books_id?: string
+  open_library_key?: string
   isbn_13?: string
   isbn_10?: string
   title: string
@@ -52,7 +53,8 @@ export interface Book {
 // Book card data type for UI components
 export interface BookCardData {
   id: string
-  google_books_id: string | null
+  google_books_id?: string | null
+  open_library_key?: string | null
   title: string
   authors: string[]
   cover_url?: string | null
@@ -64,25 +66,15 @@ export interface BookCardData {
   isbn_13?: string | null
 }
 
-// Open Library API types
-export interface OpenLibraryWork {
-  key: string
-  title: string
-  authors?: Array<{
-    author: {
-      key: string
-    }
-    type: {
-      key: string
-    }
-  }>
-  covers?: number[]
-  first_publish_year?: number
-  isbn?: string[]
-  subject?: string[]
-}
+// Re-export Open Library types from the API module
+export type {
+  OpenLibrarySearchDoc,
+  OpenLibrarySearchResponse,
+  OpenLibraryWork,
+  OpenLibraryAuthor,
+  OpenLibraryEdition,
+  NormalizedBook as OpenLibraryNormalizedBook
+} from '$lib/api/open-library';
 
-export interface OpenLibraryResponse {
-  numFound: number
-  docs: OpenLibraryWork[]
-}
+// Re-export unified book type from search service
+export type { UnifiedBook, SearchSource, SearchOptions } from '$lib/api/book-search-service';

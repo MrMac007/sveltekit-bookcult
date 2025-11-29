@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '$lib/supabase/server';
-import { googleBooksAPI } from '$lib/api/google-books';
+import { bookSearchService, type UnifiedBook } from '$lib/api/book-search-service';
 
 export const GET: RequestHandler = async (event) => {
 	const query = event.url.searchParams.get('q');
-	const source = event.url.searchParams.get('source') || 'database'; // database, api, or both
-	const author = event.url.searchParams.get('author') || undefined; // optional author filter
+	const source = event.url.searchParams.get('source') || 'database'; // database, api, both, openlib, google
+	const author = event.url.searchParams.get('author') || undefined;
 
 	if (!query) {
 		return json({ error: 'Search query is required' }, { status: 400 });
@@ -15,31 +15,30 @@ export const GET: RequestHandler = async (event) => {
 	try {
 		const supabase = createClient(event);
 
-		// If requesting API only, skip database search
-		if (source === 'api') {
-			const apiResults = await googleBooksAPI.searchAndNormalize(query, 20, author);
+		// API-only searches (bypass database)
+		if (source === 'api' || source === 'openlib' || source === 'google') {
+			const searchSource = source === 'api' ? 'hybrid' : source;
+			const apiResults = await bookSearchService.search(query, {
+				maxResults: 20,
+				author,
+				source: searchSource as 'hybrid' | 'openlib' | 'google'
+			});
 			return json(apiResults);
 		}
 
-		// Search the local database
+		// Search the local database first
 		const searchTerm = `%${query.toLowerCase()}%`;
-
-		// Build the search query
 		let dbQuery = supabase.from('books').select('*');
-
-		// Apply title search - search in title or authors array
 		dbQuery = dbQuery.or(`title.ilike.${searchTerm},authors.cs.{${query}}`);
 
-		// Add author filter if provided
+		// Handle author filter
 		if (author && author.trim()) {
-			// Fetch results first, then filter by author on application side
 			const { data: dbBooks, error: dbError } = await dbQuery.limit(100);
 
 			if (dbError) {
 				console.error('Database search error:', dbError);
 			}
 
-			// Filter results by author on the application side
 			const authorLower = author.toLowerCase();
 			const filteredBooks = (dbBooks || [])
 				.filter((book: any) => {
@@ -48,39 +47,21 @@ export const GET: RequestHandler = async (event) => {
 				})
 				.slice(0, 20);
 
-			const formattedDbResults = filteredBooks.map((book: any) => ({
-				id: book.id,
-				google_books_id: book.google_books_id,
-				isbn_13: book.isbn_13,
-				isbn_10: book.isbn_10,
-				title: book.title,
-				authors: book.authors || [],
-				publisher: book.publisher,
-				published_date: book.published_date,
-				description: book.description,
-				page_count: book.page_count,
-				cover_url: book.cover_url,
-				categories: book.categories || [],
-				language: book.language
-			}));
+			const formattedDbResults = formatDatabaseResults(filteredBooks);
 
-			// If we have database results and not requesting both sources, return them
 			if (formattedDbResults.length > 0 && source !== 'both') {
 				return json(formattedDbResults);
 			}
 
-			// No database results or requesting both sources, query Google Books API
-			const apiResults = await googleBooksAPI.searchAndNormalize(query, 20, author);
+			// Supplement with API results using hybrid search
+			const apiResults = await bookSearchService.search(query, {
+				maxResults: 20,
+				author,
+				source: 'hybrid'
+			});
 
-			// If requesting both, merge and deduplicate
 			if (source === 'both' && formattedDbResults.length > 0) {
-				const dbGoogleIds = new Set(
-					formattedDbResults.map((book) => book.google_books_id).filter(Boolean)
-				);
-				const uniqueApiResults = apiResults.filter(
-					(book: any) => !dbGoogleIds.has(book.google_books_id)
-				);
-				return json([...formattedDbResults, ...uniqueApiResults]);
+				return json(mergeAndDeduplicate(formattedDbResults, apiResults));
 			}
 
 			return json(apiResults);
@@ -93,45 +74,21 @@ export const GET: RequestHandler = async (event) => {
 			console.error('Database search error:', dbError);
 		}
 
-		// Format database results
-		const formattedDbResults = (dbBooks || []).map((book: any) => ({
-			id: book.id,
-			google_books_id: book.google_books_id,
-			isbn_13: book.isbn_13,
-			isbn_10: book.isbn_10,
-			title: book.title,
-			authors: book.authors || [],
-			publisher: book.publisher,
-			published_date: book.published_date,
-			description: book.description,
-			page_count: book.page_count,
-			cover_url: book.cover_url,
-			categories: book.categories || [],
-			language: book.language
-		}));
+		const formattedDbResults = formatDatabaseResults(dbBooks || []);
 
-		// If we have database results and not requesting both sources, return them
 		if (formattedDbResults.length > 0 && source !== 'both') {
 			return json(formattedDbResults);
 		}
 
-		// No database results or requesting both sources, query Google Books API
-		const apiResults = await googleBooksAPI.searchAndNormalize(query, 20, author);
+		// Use hybrid search (Open Library primary, Google Books fallback)
+		const apiResults = await bookSearchService.search(query, {
+			maxResults: 20,
+			author,
+			source: 'hybrid'
+		});
 
-		// If requesting both, merge and deduplicate
 		if (source === 'both' && formattedDbResults.length > 0) {
-			// Create a set of google_books_ids from database results
-			const dbGoogleIds = new Set(
-				formattedDbResults.map((book) => book.google_books_id).filter(Boolean)
-			);
-
-			// Filter out API results that are already in database
-			const uniqueApiResults = apiResults.filter(
-				(book: any) => !dbGoogleIds.has(book.google_books_id)
-			);
-
-			// Return database results first, then unique API results
-			return json([...formattedDbResults, ...uniqueApiResults]);
+			return json(mergeAndDeduplicate(formattedDbResults, apiResults));
 		}
 
 		return json(apiResults);
@@ -140,3 +97,56 @@ export const GET: RequestHandler = async (event) => {
 		return json({ error: 'Failed to search books' }, { status: 500 });
 	}
 };
+
+/**
+ * Format database results to match UnifiedBook format
+ */
+function formatDatabaseResults(books: any[]): UnifiedBook[] {
+	return books.map((book) => ({
+		id: book.id,
+		google_books_id: book.google_books_id,
+		open_library_key: book.open_library_key,
+		isbn_13: book.isbn_13,
+		isbn_10: book.isbn_10,
+		title: book.title,
+		authors: book.authors || [],
+		publisher: book.publisher,
+		published_date: book.published_date,
+		description: book.description,
+		page_count: book.page_count,
+		cover_url: book.cover_url,
+		categories: book.categories || [],
+		language: book.language,
+		source: 'openlib' as const // Database records are treated as canonical
+	}));
+}
+
+/**
+ * Merge database results with API results, deduplicating by ISBN or title
+ */
+function mergeAndDeduplicate(dbResults: UnifiedBook[], apiResults: UnifiedBook[]): UnifiedBook[] {
+	const seen = new Set<string>();
+
+	// Add database results first (they take priority)
+	for (const book of dbResults) {
+		if (book.isbn_13) seen.add(`isbn13:${book.isbn_13}`);
+		if (book.isbn_10) seen.add(`isbn10:${book.isbn_10}`);
+		if (book.google_books_id) seen.add(`google:${book.google_books_id}`);
+		if (book.open_library_key) seen.add(`openlib:${book.open_library_key}`);
+		seen.add(`title:${book.title.toLowerCase()}`);
+	}
+
+	// Filter API results
+	const uniqueApiResults = apiResults.filter((book) => {
+		const isDuplicate =
+			(book.isbn_13 && seen.has(`isbn13:${book.isbn_13}`)) ||
+			(book.isbn_10 && seen.has(`isbn10:${book.isbn_10}`)) ||
+			(book.google_books_id && seen.has(`google:${book.google_books_id}`)) ||
+			(book.open_library_key && seen.has(`openlib:${book.open_library_key}`)) ||
+			seen.has(`title:${book.title.toLowerCase()}`);
+
+		return !isDuplicate;
+	});
+
+	return [...dbResults, ...uniqueApiResults];
+}
