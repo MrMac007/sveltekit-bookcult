@@ -241,7 +241,7 @@
 						};
 					}}
 				>
-					<div class="flex-1 overflow-y-auto py-4 px-1">
+					<div class="flex-1 overflow-y-auto p-4 md:p-6">
 						<p class="text-sm text-muted-foreground mb-4">
 							Select up to 3 books to showcase on your quote wall.
 						</p>
@@ -351,7 +351,7 @@
 						{/if}
 					</div>
 
-					<div class="mt-4 flex justify-end pt-4 border-t">
+					<div class="p-4 md:p-6 pt-2 border-t flex justify-end bg-background">
 						<Button type="submit" class="w-full sm:w-auto" disabled={isSaving || availableBooks.length === 0}>
 							{#if isSaving}
 								<Loader2 class="h-4 w-4 mr-2 animate-spin" />
