@@ -25,19 +25,16 @@
 				isSubmitting = true;
 				errorMessage = '';
 
-				return async ({ result }) => {
+				return async ({ result, update }) => {
 					isSubmitting = false;
 
-					if (result.type === 'success') {
-						// Redirect will be handled by the server action
-						const data = result.data as { groupId?: string } | undefined;
-						if (data?.groupId) {
-							goto(`/groups/${data.groupId}`);
-						}
-					} else if (result.type === 'failure') {
+					if (result.type === 'failure') {
 						const data = result.data as { error?: string } | undefined;
 						errorMessage = data?.error || 'Failed to join group';
 					}
+					// Redirect is handled by the server action via throw redirect()
+					// SvelteKit will automatically follow the redirect
+					await update();
 				};
 			}}
 		>

@@ -37,9 +37,9 @@
 </script>
 
 <nav
-	class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-gradient-to-t from-background/95 via-background/90 to-background/80 backdrop-blur-xl"
+	class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/80 backdrop-blur-xl safe-bottom"
 >
-	<div class="mx-auto flex h-16 max-w-lg items-center justify-around px-4 safe-bottom">
+	<div class="mx-auto grid h-16 w-full max-w-md grid-cols-5">
 		{#each navItems as item}
 			{@const isActive = activePathname === item.href}
 			{@const Icon = item.icon}
@@ -47,14 +47,15 @@
 			<a
 				href={item.href}
 				class={cn(
-					'tap-target flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 text-xs font-medium transition-all',
-					isActive
-						? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-						: 'text-muted-foreground hover:text-foreground hover:bg-card/60'
+					'tap-target flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:scale-95',
+					isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
 				)}
 			>
-				<Icon class={cn('h-5 w-5', isActive && 'text-emerald-700')} />
-				<span class="uppercase tracking-wide">{item.name}</span>
+				<Icon
+					class={cn('h-6 w-6 transition-transform duration-200', isActive && '-translate-y-0.5 scale-110')}
+					strokeWidth={isActive ? 2.5 : 2}
+				/>
+				<span class="text-[10px] font-medium tracking-wide">{item.name}</span>
 			</a>
 		{/each}
 	</div>
