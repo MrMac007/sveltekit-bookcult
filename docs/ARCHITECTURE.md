@@ -28,7 +28,7 @@ BookCult SvelteKit is a full-stack social reading platform built with modern web
 - **SvelteKit** for the framework (SSR, routing, API)
 - **Svelte 5** for reactive UI components (runes)
 - **Supabase** for database, auth, and real-time features
-- **Google Books API** for book data
+- **Open Library API** for book data
 - **Google Gemini** for AI recommendations
 - **Tailwind CSS v4** for styling
 
@@ -49,7 +49,7 @@ BookCult SvelteKit is a full-stack social reading platform built with modern web
 - **Supabase Auth** - Authentication provider
 
 ### External Services
-- **Google Books API** - Book metadata and search
+- **Open Library API** - Book metadata and search (no API key required)
 - **Google Gemini 2.5 Flash** - AI recommendations and enhancements
 
 ### Development Tools
@@ -77,7 +77,8 @@ sveltekit-bookcult/
 │   │   │   ├── book-enhancer.ts     # Book metadata enhancement
 │   │   │   └── env-bridge.ts        # Environment variable bridge
 │   │   ├── api/                      # External API integrations
-│   │   │   ├── google-books.ts      # Google Books API client
+│   │   │   ├── open-library.ts      # Open Library API client
+│   │   │   ├── book-search-service.ts # Book search service
 │   │   │   ├── book-cache.ts        # Book caching layer
 │   │   │   └── book-helpers.ts      # Book utility functions
 │   │   ├── components/               # Reusable Svelte components
@@ -511,17 +512,15 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 ### External API Integration
 
-Example: Google Books API
+Example: Open Library API
 
 ```typescript
-// src/lib/api/google-books.ts
-export class GoogleBooksAPI {
-  private apiKey: string;
-
+// src/lib/api/open-library.ts
+export class OpenLibraryAPI {
   async searchBooks(query: string) {
-    const url = new URL('https://www.googleapis.com/books/v1/volumes');
+    const url = new URL('https://openlibrary.org/search.json');
     url.searchParams.set('q', query);
-    url.searchParams.set('key', this.apiKey);
+    url.searchParams.set('limit', '20');
 
     const response = await fetch(url);
     return await response.json();

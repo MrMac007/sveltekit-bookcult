@@ -74,7 +74,7 @@ The SvelteKit conversion of BookCult is **96% complete** and fully functional. T
 ### API & Server Actions (95% ✅)
 
 #### API Routes (100% - 8/8 ✅):
-- [x] `/api/books/search` - Book search (DB + Google Books)
+- [x] `/api/books/search` - Book search (DB + Open Library)
 - [x] `/api/books/fetch` - Fetch single book
 - [x] `/api/books/enhance` - AI enhancement
 - [x] `/api/books/group-books` - Group books
@@ -178,7 +178,7 @@ The SvelteKit conversion of BookCult is **96% complete** and fully functional. T
 
 ### Testing Checklist
 - [x] Authentication flow (email + OAuth)
-- [x] Book search (database + Google Books API)
+- [x] Book search (database + Open Library API)
 - [x] Wishlist add/remove
 - [x] Complete books and rate
 - [x] AI recommendations
@@ -207,9 +207,9 @@ The SvelteKit conversion of BookCult is **96% complete** and fully functional. T
 - **Reactive state:** Svelte 5 runes (`$state`, `$derived`, `$effect`)
 
 ### Key Implementations
-- **Smart book search:** Database-first, Google Books fallback
+- **Smart book search:** Database-first, Open Library API
 - **AI enhancement:** Automatic on new books
-- **Deduplication:** By ISBN and Google Books ID
+- **Deduplication:** By ISBN and Open Library key
 - **Activity grouping:** 7-day window, minimum 2 activities
 - **Recommendation refresh:** Auto after 3 wishlist additions
 - **Protected routes:** Via server hooks middleware

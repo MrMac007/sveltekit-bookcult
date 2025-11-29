@@ -202,14 +202,14 @@
 				return typedExisting.id;
 			}
 
-			const response = await fetch(`/api/books/fetch?id=${book.open_library_key}&source=openlib`);
+			const response = await fetch(`/api/books/fetch?id=${book.open_library_key}`);
 			if (response.ok) {
 				const payload = await response.json();
 				if (payload?.id) return payload.id;
 			}
 		}
 
-		// Fall back to Google Books ID
+		// Check database for existing books with Google Books ID (legacy support)
 		if (book.google_books_id) {
 			const { data: existing } = await supabase
 				.from('books')
@@ -221,19 +221,11 @@
 			if (typedExisting?.id) {
 				return typedExisting.id;
 			}
-
-			const response = await fetch(`/api/books/fetch?id=${book.google_books_id}`);
-			if (!response.ok) {
-				return null;
-			}
-
-			const payload = await response.json();
-			return payload?.id ?? null;
 		}
 
 		// Last resort: try the book.id as Open Library key (format: OL12345W)
 		if (book.id && /^OL\d+[WM]$/.test(book.id)) {
-			const response = await fetch(`/api/books/fetch?id=${book.id}&source=openlib`);
+			const response = await fetch(`/api/books/fetch?id=${book.id}`);
 			if (response.ok) {
 				const payload = await response.json();
 				if (payload?.id) return payload.id;

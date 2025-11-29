@@ -57,7 +57,20 @@
 			return book.id;
 		}
 
-		// Try to find by google_books_id
+		// Try to find by open_library_key first
+		if (book.open_library_key) {
+			const { data: existing } = await supabase
+				.from('books')
+				.select('id')
+				.eq('open_library_key', book.open_library_key)
+				.single();
+
+			if (existing) {
+				return (existing as { id: string }).id;
+			}
+		}
+
+		// Try to find by google_books_id (legacy support)
 		if (book.google_books_id) {
 			const { data: existing } = await supabase
 				.from('books')
@@ -70,8 +83,9 @@
 			}
 		}
 
-		// Fetch the book from our API to create it in the database
-		const response = await fetch(`/api/books/fetch?id=${book.google_books_id || book.id}`);
+		// Fetch the book from our API to create it in the database (uses Open Library)
+		const bookKey = book.open_library_key || book.id;
+		const response = await fetch(`/api/books/fetch?id=${bookKey}`);
 		if (!response.ok) {
 			const payload = await response.json();
 			throw new Error(payload.error || 'Unable to fetch book');

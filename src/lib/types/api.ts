@@ -1,4 +1,4 @@
-// Google Books API types
+// Legacy Google Books types (kept for reference, no longer used)
 export interface GoogleBooksVolume {
   id: string
   volumeInfo: {
@@ -79,4 +79,4 @@ export type {
 } from '$lib/api/open-library';
 
 // Re-export unified book type from search service
-export type { UnifiedBook, SearchSource, SearchOptions } from '$lib/api/book-search-service';
+export type { UnifiedBook, SearchOptions } from '$lib/api/book-search-service';

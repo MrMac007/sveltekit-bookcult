@@ -8,16 +8,8 @@ interface DbBookId {
   id: string
 }
 
-/**
- * Check if an ID is an Open Library key (e.g., OL12345W)
- */
-function isOpenLibraryKey(id: string): boolean {
-  return /^OL\d+[WM]$/.test(id)
-}
-
 export const GET: RequestHandler = async (event) => {
   const bookId = event.url.searchParams.get('id')
-  const source = event.url.searchParams.get('source') // 'openlib' or 'google' (auto-detected if not specified)
 
   if (!bookId) {
     return json({ error: 'Book ID is required' }, { status: 400 })
@@ -26,10 +18,7 @@ export const GET: RequestHandler = async (event) => {
   const supabase = createClient(event)
 
   try {
-    // Detect source from ID format if not specified
-    const detectedSource = (source || (isOpenLibraryKey(bookId) ? 'openlib' : 'google')) as 'openlib' | 'google'
-
-    const book = (await getOrFetchBook(bookId, supabase, detectedSource)) as any
+    const book = (await getOrFetchBook(bookId, supabase)) as any
 
     if (!book) {
       return json({ error: 'Book not found' }, { status: 404 })
@@ -39,16 +28,12 @@ export const GET: RequestHandler = async (event) => {
       return json(book)
     }
 
-    // Try to find in database by the appropriate key
-    let dbQuery = supabase.from('books').select('id')
-
-    if (detectedSource === 'openlib') {
-      dbQuery = dbQuery.eq('open_library_key', bookId)
-    } else {
-      dbQuery = dbQuery.eq('google_books_id', bookId)
-    }
-
-    const { data: dbBook, error } = await dbQuery.single()
+    // Try to find in database by Open Library key
+    const { data: dbBook, error } = await supabase
+      .from('books')
+      .select('id')
+      .eq('open_library_key', bookId)
+      .single()
 
     if (error || !dbBook) {
       console.error('[API] Database query error:', error?.message)

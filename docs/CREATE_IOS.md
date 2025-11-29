@@ -34,7 +34,6 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 
 ### Optional (for Phase 2)
 - Your deployed web app URL (e.g., `https://your-app.vercel.app`)
-- Google Books API key (if you want direct Google Books integration)
 
 ---
 
@@ -971,7 +970,7 @@ Before moving to Phase 2, verify:
 ### Features Added in Phase 2
 
 🔍 **Discovery**
-- Search for books (Google Books + database)
+- Search for books (Open Library + database)
 - View book details
 - Add search results to wishlist
 

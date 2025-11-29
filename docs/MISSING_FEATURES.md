@@ -225,7 +225,7 @@ Admin-only interface for managing a group's reading list (add/remove books).
   - Set as "Current Reading Book" button
 
 - **Actions:**
-  - Search books (database + Google Books API)
+  - Search books (database + Open Library API)
   - Add book to group reading list
   - Remove book from group
   - Set/unset current reading book for group

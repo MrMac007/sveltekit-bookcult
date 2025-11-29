@@ -10,7 +10,7 @@ A mobile-first social reading platform built with SvelteKit + Svelte 5.
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4
 - **Database**: Supabase (PostgreSQL + Auth + Row Level Security)
-- **Book Data**: Google Books API
+- **Book Data**: Open Library API
 - **AI**: Google Gemini (for recommendations and enhancements)
 - **UI Components**: bits-ui (Svelte port of Radix UI)
 - **Animations**: Native Svelte transitions
@@ -48,7 +48,7 @@ Visit `http://localhost:5173`
 ## Key Features
 
 ### Core Functionality ✅
-- 📚 Book discovery via Google Books API
+- 📚 Book discovery via Open Library API
 - ⭐ Half-star precision ratings (0.5 - 5.0)
 - 📖 Reading status tracking (wishlist, reading, completed)
 - 👥 Reading groups with invite codes
@@ -82,7 +82,6 @@ Visit `http://localhost:5173`
 
 - Node.js 18+ and npm
 - Supabase account
-- Google Books API key (optional but recommended)
 - Google Gemini API key (optional, for AI features)
 
 ### Installation
@@ -112,9 +111,6 @@ Create a `.env` file:
 # Supabase (required)
 PUBLIC_SUPABASE_URL=your_supabase_project_url
 PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Google Books API (optional but recommended)
-GOOGLE_BOOKS_API_KEY=your_google_books_api_key
 
 # Google Gemini AI (optional, for recommendations and enhancements)
 GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key
@@ -266,7 +262,7 @@ The app is configured with `@sveltejs/adapter-auto` which automatically selects 
 ## Features Overview
 
 ### Book Discovery
-- Search Google Books API
+- Search Open Library API
 - AI-powered personalized recommendations
 - Smart caching layer (30-day expiry)
 - Full-text search in cached books
@@ -311,7 +307,7 @@ This is a port of the Next.js version. Both versions:
 - [Tailwind CSS](https://tailwindcss.com/docs)
 
 ### APIs
-- [Google Books API](https://developers.google.com/books)
+- [Open Library API](https://openlibrary.org/developers/api)
 - [Google Gemini](https://ai.google.dev/docs)
 
 ### Project Docs
@@ -332,7 +328,7 @@ MIT
 
 - Original Next.js version (parent directory)
 - Supabase for backend infrastructure
-- Google Books API for book data
+- Open Library API for book data
 - Google Gemini for AI features
 - Svelte and SvelteKit teams for the amazing framework
 

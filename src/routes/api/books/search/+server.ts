@@ -5,7 +5,7 @@ import { bookSearchService, type UnifiedBook } from '$lib/api/book-search-servic
 
 export const GET: RequestHandler = async (event) => {
 	const query = event.url.searchParams.get('q');
-	const source = event.url.searchParams.get('source') || 'database'; // database, api, both, openlib, google
+	const source = event.url.searchParams.get('source') || 'database'; // database, api, both
 	const author = event.url.searchParams.get('author') || undefined;
 
 	if (!query) {
@@ -15,13 +15,11 @@ export const GET: RequestHandler = async (event) => {
 	try {
 		const supabase = createClient(event);
 
-		// API-only searches (bypass database)
-		if (source === 'api' || source === 'openlib' || source === 'google') {
-			const searchSource = source === 'api' ? 'hybrid' : source;
+		// API-only searches (bypass database) - uses Open Library
+		if (source === 'api') {
 			const apiResults = await bookSearchService.search(query, {
 				maxResults: 20,
-				author,
-				source: searchSource as 'hybrid' | 'openlib' | 'google'
+				author
 			});
 			return json(apiResults);
 		}
@@ -53,11 +51,10 @@ export const GET: RequestHandler = async (event) => {
 				return json(formattedDbResults);
 			}
 
-			// Supplement with API results using hybrid search
+			// Supplement with API results using Open Library
 			const apiResults = await bookSearchService.search(query, {
 				maxResults: 20,
-				author,
-				source: 'hybrid'
+				author
 			});
 
 			if (source === 'both' && formattedDbResults.length > 0) {
@@ -80,11 +77,10 @@ export const GET: RequestHandler = async (event) => {
 			return json(formattedDbResults);
 		}
 
-		// Use hybrid search (Open Library primary, Google Books fallback)
+		// Use Open Library search
 		const apiResults = await bookSearchService.search(query, {
 			maxResults: 20,
-			author,
-			source: 'hybrid'
+			author
 		});
 
 		if (source === 'both' && formattedDbResults.length > 0) {

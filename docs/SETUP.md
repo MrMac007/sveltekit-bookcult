@@ -10,7 +10,6 @@ Before you begin, ensure you have:
 
 - **Node.js** 18+ and npm
 - **Supabase Account** (free tier works fine)
-- **Google Books API Key** (optional but recommended)
 - **Google Gemini API Key** (optional, for AI features)
 - **Git** (for cloning the repository)
 
@@ -134,13 +133,6 @@ PUBLIC_SUPABASE_URL=https://[your-project].supabase.co
 PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
 
 # ========================================
-# OPTIONAL - Google Books API
-# ========================================
-# Get free API key at: https://console.cloud.google.com/apis/credentials
-# Enables better book search results and metadata
-GOOGLE_BOOKS_API_KEY=your_google_books_api_key
-
-# ========================================
 # OPTIONAL - Google Gemini AI
 # ========================================
 # Get free API key at: https://ai.google.dev/
@@ -155,13 +147,6 @@ PUBLIC_APP_URL=http://localhost:5173
 ```
 
 #### Getting API Keys
-
-**Google Books API Key (Free):**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create project or select existing
-3. Enable "Books API"
-4. Go to Credentials > Create Credentials > API Key
-5. Copy the API key
 
 **Google Gemini API Key (Free):**
 1. Go to [Google AI Studio](https://ai.google.dev/)
@@ -329,12 +314,12 @@ export const load = async ({ locals }) => {
 
 #### Books Not Found in Search
 
-**Problem:** Google Books API not configured
+**Problem:** Open Library API may be temporarily unavailable
 
 **Solutions:**
-1. Add `GOOGLE_BOOKS_API_KEY` to `.env`
-2. Or search database-only by using source filter
-3. Verify API key is enabled for Books API
+1. Search uses cached results from database first
+2. Check your internet connection
+3. Open Library API may have rate limits - wait and try again
 
 #### OAuth Redirect Errors
 
@@ -438,7 +423,7 @@ Before deploying, test these workflows:
 - [ ] Session persists across page reloads
 
 #### Book Features
-- [ ] Search books (database + Google Books)
+- [ ] Search books (database + Open Library)
 - [ ] View book details
 - [ ] Add to wishlist
 - [ ] Mark as currently reading
@@ -490,7 +475,7 @@ Once set up, you can:
 - **Svelte 5 Docs:** https://svelte.dev/docs
 - **Supabase Docs:** https://supabase.com/docs
 - **Tailwind CSS:** https://tailwindcss.com/docs
-- **Google Books API:** https://developers.google.com/books
+- **Open Library API:** https://openlibrary.org/developers/api
 - **Google Gemini:** https://ai.google.dev/docs
 
 ### Common Questions
@@ -499,7 +484,7 @@ Once set up, you can:
 A: Yes! Both versions can share the same Supabase database.
 
 **Q: Do I need all the API keys?**
-A: No. Only Supabase is required. Google Books and Gemini are optional enhancements.
+A: No. Only Supabase is required. Gemini is optional for AI enhancements. Book search uses Open Library (no API key needed).
 
 **Q: How do I add new pages?**
 A: Create `+page.svelte` files in `src/routes/`. See existing pages for examples.

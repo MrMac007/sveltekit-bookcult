@@ -1,25 +1,16 @@
 /**
- * Unified Book Search Service
+ * Book Search Service
  *
- * Hybrid approach:
- * 1. Primary: Open Library (better canonical editions, works-based)
- * 2. Fallback: Google Books (wider coverage for obscure titles)
- *
- * The service normalizes results from both sources to a consistent format.
+ * Uses Open Library for all book searches.
+ * Open Library provides better canonical editions and a works-based approach.
  */
 
 import { openLibraryAPI, type NormalizedBook } from './open-library';
-import { googleBooksAPI } from './google-books';
 import type { Book } from '$lib/types/api';
-
-export type SearchSource = 'openlib' | 'google' | 'hybrid';
 
 export interface SearchOptions {
 	maxResults?: number;
 	author?: string;
-	source?: SearchSource;
-	/** Minimum results from Open Library before falling back to Google */
-	minOpenLibResults?: number;
 }
 
 export interface UnifiedBook {
@@ -37,7 +28,7 @@ export interface UnifiedBook {
 	cover_url?: string;
 	categories: string[];
 	language?: string;
-	source: 'openlib' | 'google' | 'database';
+	source: 'openlib' | 'database';
 	popularity_score?: number;
 }
 
@@ -64,220 +55,33 @@ function fromOpenLibrary(book: NormalizedBook): UnifiedBook {
 	};
 }
 
-/**
- * Convert Google Books result to unified format
- */
-function fromGoogleBooks(book: any): UnifiedBook {
-	return {
-		id: book.google_books_id || book.id,
-		google_books_id: book.google_books_id || book.id,
-		isbn_13: book.isbn_13,
-		isbn_10: book.isbn_10,
-		title: book.title,
-		authors: book.authors || [],
-		publisher: book.publisher,
-		published_date: book.published_date,
-		description: book.description,
-		page_count: book.page_count,
-		cover_url: book.cover_url,
-		categories: book.categories || [],
-		language: book.language,
-		source: 'google'
-	};
-}
-
-/**
- * Deduplicate books based on ISBN or title+author
- */
-function deduplicateBooks(books: UnifiedBook[]): UnifiedBook[] {
-	const seen = new Map<string, UnifiedBook>();
-
-	for (const book of books) {
-		// Create dedup keys
-		const isbn13Key = book.isbn_13 ? `isbn13:${book.isbn_13}` : null;
-		const isbn10Key = book.isbn_10 ? `isbn10:${book.isbn_10}` : null;
-		const titleAuthorKey = `title:${book.title.toLowerCase()}:${book.authors.join(',').toLowerCase()}`;
-
-		// Check if we've seen this book before
-		const existingByIsbn13 = isbn13Key ? seen.get(isbn13Key) : null;
-		const existingByIsbn10 = isbn10Key ? seen.get(isbn10Key) : null;
-		const existingByTitle = seen.get(titleAuthorKey);
-
-		const existing = existingByIsbn13 || existingByIsbn10 || existingByTitle;
-
-		if (existing) {
-			// Prefer Open Library results, or merge data
-			if (existing.source === 'openlib') {
-				// Keep Open Library, but steal Google's data if it has more
-				if (book.source === 'google') {
-					if (!existing.description && book.description) {
-						existing.description = book.description;
-					}
-					if (!existing.cover_url && book.cover_url) {
-						existing.cover_url = book.cover_url;
-					}
-					if (!existing.page_count && book.page_count) {
-						existing.page_count = book.page_count;
-					}
-					if (!existing.google_books_id && book.google_books_id) {
-						existing.google_books_id = book.google_books_id;
-					}
-				}
-			} else if (book.source === 'openlib') {
-				// Replace Google result with Open Library
-				if (isbn13Key) seen.set(isbn13Key, book);
-				if (isbn10Key) seen.set(isbn10Key, book);
-				seen.set(titleAuthorKey, book);
-				// Merge Google's data into Open Library result
-				if (!book.description && existing.description) {
-					book.description = existing.description;
-				}
-				if (!book.cover_url && existing.cover_url) {
-					book.cover_url = existing.cover_url;
-				}
-				if (!book.google_books_id && existing.google_books_id) {
-					book.google_books_id = existing.google_books_id;
-				}
-			}
-			continue;
-		}
-
-		// New book, add to seen map
-		if (isbn13Key) seen.set(isbn13Key, book);
-		if (isbn10Key) seen.set(isbn10Key, book);
-		seen.set(titleAuthorKey, book);
-	}
-
-	// Return unique books in order of first appearance
-	const uniqueBooks: UnifiedBook[] = [];
-	const addedIds = new Set<string>();
-
-	for (const book of books) {
-		const isbn13Key = book.isbn_13 ? `isbn13:${book.isbn_13}` : null;
-		const titleAuthorKey = `title:${book.title.toLowerCase()}:${book.authors.join(',').toLowerCase()}`;
-		const seenBook = (isbn13Key ? seen.get(isbn13Key) : null) || seen.get(titleAuthorKey);
-
-		if (seenBook && !addedIds.has(seenBook.id)) {
-			uniqueBooks.push(seenBook);
-			addedIds.add(seenBook.id);
-		}
-	}
-
-	return uniqueBooks;
-}
-
 export class BookSearchService {
 	/**
-	 * Search for books using the hybrid approach
+	 * Search for books using Open Library
 	 *
 	 * @param query - Search query (title, author, etc.)
 	 * @param options - Search options
 	 */
 	async search(query: string, options: SearchOptions = {}): Promise<UnifiedBook[]> {
-		const {
-			maxResults = 20,
-			author,
-			source = 'hybrid',
-			minOpenLibResults = 5
-		} = options;
+		const { maxResults = 20, author } = options;
 
-		// Single source searches
-		if (source === 'openlib') {
-			return this.searchOpenLibrary(query, maxResults, author);
-		}
-
-		if (source === 'google') {
-			return this.searchGoogleBooks(query, maxResults, author);
-		}
-
-		// Hybrid search: Try Open Library first
-		try {
-			const openLibResults = await this.searchOpenLibrary(query, maxResults, author);
-
-			// If we have enough results, return them
-			if (openLibResults.length >= minOpenLibResults) {
-				console.log(`[book-search] Open Library returned ${openLibResults.length} results`);
-				return openLibResults;
-			}
-
-			// Not enough results, supplement with Google Books
-			console.log(
-				`[book-search] Open Library returned only ${openLibResults.length} results, supplementing with Google Books`
-			);
-
-			const googleResults = await this.searchGoogleBooks(query, maxResults, author);
-
-			// Combine and deduplicate
-			const combined = [...openLibResults, ...googleResults];
-			const deduplicated = deduplicateBooks(combined);
-
-			console.log(
-				`[book-search] Combined: ${openLibResults.length} OpenLib + ${googleResults.length} Google = ${deduplicated.length} unique`
-			);
-
-			return deduplicated.slice(0, maxResults);
-		} catch (openLibError) {
-			// Open Library failed, fall back to Google Books entirely
-			console.error('[book-search] Open Library failed, falling back to Google Books:', openLibError);
-
-			try {
-				return this.searchGoogleBooks(query, maxResults, author);
-			} catch (googleError) {
-				console.error('[book-search] Both APIs failed:', googleError);
-				throw new Error('Failed to search books from all sources');
-			}
-		}
-	}
-
-	/**
-	 * Search Open Library only
-	 */
-	private async searchOpenLibrary(
-		query: string,
-		maxResults: number,
-		author?: string
-	): Promise<UnifiedBook[]> {
 		const results = await openLibraryAPI.searchAndNormalize(query, maxResults, author);
+		console.log(`[book-search] Open Library returned ${results.length} results`);
 		return results.map(fromOpenLibrary);
 	}
 
 	/**
-	 * Search Google Books only
+	 * Get book details by Open Library key
 	 */
-	private async searchGoogleBooks(
-		query: string,
-		maxResults: number,
-		author?: string
-	): Promise<UnifiedBook[]> {
-		const results = await googleBooksAPI.searchAndNormalize(query, maxResults, author);
-		return results.map(fromGoogleBooks);
+	async getBookById(id: string): Promise<UnifiedBook | null> {
+		const book = await openLibraryAPI.getBookDetails(id);
+		return book ? fromOpenLibrary(book) : null;
 	}
 
 	/**
-	 * Get book details by ID (works with either Open Library key or Google Books ID)
-	 */
-	async getBookById(id: string, source?: 'openlib' | 'google'): Promise<UnifiedBook | null> {
-		// Detect source from ID format if not specified
-		if (!source) {
-			// Open Library keys start with "OL" and end with "W" (work) or "M" (edition)
-			source = /^OL\d+[WM]$/.test(id) ? 'openlib' : 'google';
-		}
-
-		if (source === 'openlib') {
-			const book = await openLibraryAPI.getBookDetails(id);
-			return book ? fromOpenLibrary(book) : null;
-		}
-
-		const volume = await googleBooksAPI.getBookById(id);
-		const normalized = googleBooksAPI.normalizeVolume(volume);
-		return fromGoogleBooks(normalized);
-	}
-
-	/**
-	 * Search by ISBN (tries both sources)
+	 * Search by ISBN using Open Library
 	 */
 	async searchByISBN(isbn: string): Promise<UnifiedBook | null> {
-		// Try Open Library first
 		try {
 			const olResponse = await openLibraryAPI.searchByISBN(isbn);
 			if (olResponse.docs && olResponse.docs.length > 0) {
@@ -288,22 +92,11 @@ export class BookSearchService {
 			console.error('[book-search] Open Library ISBN search failed:', error);
 		}
 
-		// Fall back to Google Books
-		try {
-			const gbResponse = await googleBooksAPI.searchByISBN(isbn);
-			if (gbResponse.items && gbResponse.items.length > 0) {
-				const normalized = googleBooksAPI.normalizeVolume(gbResponse.items[0]);
-				return fromGoogleBooks(normalized);
-			}
-		} catch (error) {
-			console.error('[book-search] Google Books ISBN search failed:', error);
-		}
-
 		return null;
 	}
 
 	/**
-	 * Enrich an existing book with data from both sources
+	 * Enrich an existing book with data from Open Library
 	 * Useful for filling in missing data from existing database records
 	 */
 	async enrichBook(book: Partial<UnifiedBook>): Promise<UnifiedBook | null> {
