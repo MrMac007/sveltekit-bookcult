@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import { Home, BookMarked, Activity, Users, UserCircle } from 'lucide-svelte';
 	import { cn } from '$lib/utils';
 
@@ -32,6 +32,8 @@
 	];
 
 	let pathname = $derived($page.url.pathname);
+	// If navigating, show the destination as active immediately for instant feedback
+	let activePathname = $derived($navigating?.to?.url.pathname ?? pathname);
 </script>
 
 <nav
@@ -39,7 +41,7 @@
 >
 	<div class="mx-auto flex h-16 max-w-lg items-center justify-around px-4 safe-bottom">
 		{#each navItems as item}
-			{@const isActive = pathname === item.href}
+			{@const isActive = activePathname === item.href}
 			{@const Icon = item.icon}
 
 			<a

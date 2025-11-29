@@ -52,104 +52,105 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(303, '/login')
   }
 
-  // Get wishlist books
-  const { data: wishlistBooks, error: wishlistError } = await supabase
-    .from('wishlists')
-    .select(
-      `
-      id,
-      added_at,
-      books (
+  // Run all three queries in parallel for faster loading
+  const [wishlistResult, currentlyReadingResult, completedBooksResult] = await Promise.all([
+    // Get wishlist books
+    supabase
+      .from('wishlists')
+      .select(
+        `
         id,
-        google_books_id,
-        title,
-        authors,
-        cover_url,
-        description,
-        published_date,
-        page_count,
-        categories,
-        isbn_10,
-        isbn_13
+        added_at,
+        books (
+          id,
+          google_books_id,
+          title,
+          authors,
+          cover_url,
+          description,
+          published_date,
+          page_count,
+          categories,
+          isbn_10,
+          isbn_13
+        )
+      `
       )
-    `
-    )
-    .eq('user_id', user.id)
-    .order('added_at', { ascending: false })
+      .eq('user_id', user.id)
+      .order('added_at', { ascending: false }),
 
-  if (wishlistError) {
-    console.error('Error fetching wishlist:', wishlistError)
+    // Get currently reading books
+    supabase
+      .from('currently_reading')
+      .select(
+        `
+        id,
+        started_at,
+        books (
+          id,
+          google_books_id,
+          title,
+          authors,
+          cover_url,
+          description,
+          published_date,
+          page_count,
+          categories,
+          isbn_10,
+          isbn_13
+        )
+      `
+      )
+      .eq('user_id', user.id)
+      .order('started_at', { ascending: false }),
+
+    // Get completed books
+    supabase
+      .from('completed_books')
+      .select(
+        `
+        id,
+        completed_at,
+        books (
+          id,
+          google_books_id,
+          title,
+          authors,
+          cover_url,
+          description,
+          published_date,
+          page_count,
+          categories,
+          isbn_10,
+          isbn_13
+        )
+      `
+      )
+      .eq('user_id', user.id)
+      .order('completed_at', { ascending: false }),
+  ])
+
+  if (wishlistResult.error) {
+    console.error('Error fetching wishlist:', wishlistResult.error)
+  }
+  if (currentlyReadingResult.error) {
+    console.error('Error fetching currently reading:', currentlyReadingResult.error)
+  }
+  if (completedBooksResult.error) {
+    console.error('Error fetching completed books:', completedBooksResult.error)
   }
 
   // Filter out any items where books is null
-  const typedWishlist = (wishlistBooks || []) as unknown as WishlistItem[]
+  const typedWishlist = (wishlistResult.data || []) as unknown as WishlistItem[]
   const validWishlistBooks = typedWishlist.filter((item) => item.books !== null)
 
-  // Get currently reading books
-  const { data: currentlyReading, error: currentlyReadingError } = await supabase
-    .from('currently_reading')
-    .select(
-      `
-      id,
-      started_at,
-      books (
-        id,
-        google_books_id,
-        title,
-        authors,
-        cover_url,
-        description,
-        published_date,
-        page_count,
-        categories,
-        isbn_10,
-        isbn_13
-      )
-    `
-    )
-    .eq('user_id', user.id)
-    .order('started_at', { ascending: false })
-
-  if (currentlyReadingError) {
-    console.error('Error fetching currently reading:', currentlyReadingError)
-  }
-
-  const typedCurrentlyReading = (currentlyReading || []) as unknown as CurrentlyReadingItem[]
+  const typedCurrentlyReading = (currentlyReadingResult.data || []) as unknown as CurrentlyReadingItem[]
   const validCurrentlyReading = typedCurrentlyReading.filter((item) => item.books !== null)
 
-  // Get completed books with ratings
-  const { data: completedBooks, error: completedBooksError } = await supabase
-    .from('completed_books')
-    .select(
-      `
-      id,
-      completed_at,
-      books (
-        id,
-        google_books_id,
-        title,
-        authors,
-        cover_url,
-        description,
-        published_date,
-        page_count,
-        categories,
-        isbn_10,
-        isbn_13
-      )
-    `
-    )
-    .eq('user_id', user.id)
-    .order('completed_at', { ascending: false })
-
-  if (completedBooksError) {
-    console.error('Error fetching completed books:', completedBooksError)
-  }
-
-  const typedCompleted = (completedBooks || []) as unknown as CompletedBookItem[]
+  const typedCompleted = (completedBooksResult.data || []) as unknown as CompletedBookItem[]
   const validCompletedBooks = typedCompleted.filter((item) => item.books !== null)
 
-  // Get ratings for completed books
+  // Get ratings for completed books (depends on completed books data)
   const completedBookIds = validCompletedBooks.map((cb) => cb.books!.id)
   const { data: ratings } = await supabase
     .from('ratings')

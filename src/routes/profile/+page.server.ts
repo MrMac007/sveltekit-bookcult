@@ -35,69 +35,77 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(303, '/login')
   }
 
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Run all queries in parallel for faster loading
+  const [
+    profileResult,
+    wishlistCountResult,
+    completedCountResult,
+    currentlyReadingCountResult,
+    currentlyReadingResult,
+  ] = await Promise.all([
+    // Get user profile
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
 
-  if (!profile) {
+    // Get wishlist count
+    supabase
+      .from('wishlists')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+
+    // Get completed count
+    supabase
+      .from('completed_books')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+
+    // Get currently reading count
+    supabase
+      .from('currently_reading')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+
+    // Get currently reading books with details (for display section)
+    supabase
+      .from('currently_reading')
+      .select(
+        `
+        id,
+        started_at,
+        group_id,
+        books:book_id (
+          id,
+          title,
+          authors,
+          cover_url,
+          description,
+          page_count,
+          published_date
+        ),
+        groups:group_id (
+          id,
+          name
+        )
+      `
+      )
+      .eq('user_id', user.id)
+      .order('started_at', { ascending: false })
+      .limit(6),
+  ])
+
+  if (!profileResult.data) {
     throw redirect(303, '/login')
   }
 
-  // Get wishlist count
-  const { count: wishlistCount } = await supabase
-    .from('wishlists')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  // Get completed count
-  const { count: completedCount } = await supabase
-    .from('completed_books')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  // Get currently reading count
-  const { count: currentlyReadingCount } = await supabase
-    .from('currently_reading')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  // Get currently reading books with details (for display section)
-  const { data: currentlyReading } = await supabase
-    .from('currently_reading')
-    .select(
-      `
-      id,
-      started_at,
-      group_id,
-      books:book_id (
-        id,
-        title,
-        authors,
-        cover_url,
-        description,
-        page_count,
-        published_date
-      ),
-      groups:group_id (
-        id,
-        name
-      )
-    `
-    )
-    .eq('user_id', user.id)
-    .order('started_at', { ascending: false })
-    .limit(6)
-
-  const currentlyReadingItems = (currentlyReading as CurrentlyReadingItem[] | null)?.filter((item) => item.books !== null) ?? []
+  const currentlyReadingItems =
+    (currentlyReadingResult.data as CurrentlyReadingItem[] | null)?.filter(
+      (item) => item.books !== null
+    ) ?? []
 
   return {
-    profile: profile as Profile,
-    wishlistCount: wishlistCount || 0,
-    completedCount: completedCount || 0,
-    currentlyReadingCount: currentlyReadingCount || 0,
+    profile: profileResult.data as Profile,
+    wishlistCount: wishlistCountResult.count || 0,
+    completedCount: completedCountResult.count || 0,
+    currentlyReadingCount: currentlyReadingCountResult.count || 0,
     currentlyReading: currentlyReadingItems,
   }
 }

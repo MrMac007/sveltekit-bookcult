@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AppHeader from './app-header.svelte';
 	import BottomNav from './bottom-nav.svelte';
+	import NavProgress from './nav-progress.svelte';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -12,6 +13,7 @@
 	let { children, title, showLogo = true }: Props = $props();
 </script>
 
+<NavProgress />
 <div class="flex min-h-screen flex-col bg-background">
 	<AppHeader {title} {showLogo} />
 	<main class="flex-1 pb-20 pt-4" style="padding-bottom: calc(5rem + env(safe-area-inset-bottom));">
