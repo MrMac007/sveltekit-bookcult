@@ -212,7 +212,7 @@
 						</div>
 					</div>
 					<div class="p-4 md:p-6 pt-2 border-t flex justify-end bg-background">
-						<Button type="submit" disabled={isSaving || selectedStyle === currentStyle}>
+						<Button type="submit" class="w-full sm:w-auto" disabled={isSaving || selectedStyle === currentStyle}>
 							{#if isSaving}
 								<Loader2 class="h-4 w-4 mr-2 animate-spin" />
 							{/if}
@@ -288,13 +288,6 @@
 
 										<div class="relative flex-1 min-h-[160px] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center text-center p-4 transition-colors hover:border-primary/50 hover:bg-muted/50">
 											{#if selectedBook}
-												{#if selectedBook.cover_url}
-													<img 
-														src={selectedBook.cover_url} 
-														alt={selectedBook.title}
-														class="absolute inset-0 h-full w-full object-cover rounded-lg opacity-40 group-hover:opacity-30 transition-opacity"
-													/>
-												{/if}
 												<div class="relative z-10 flex flex-col items-center gap-2">
 													{#if selectedBook.cover_url}
 														<img 
@@ -308,7 +301,7 @@
 														</div>
 													{/if}
 													<div class="w-full px-2">
-														<p class="text-sm font-medium leading-tight line-clamp-2 text-foreground shadow-black/10 drop-shadow-sm">
+														<p class="text-sm font-medium leading-tight line-clamp-2 text-foreground">
 															{selectedBook.title}
 														</p>
 														{#if selectedBook.authors.length > 0}
@@ -354,7 +347,7 @@
 					</div>
 
 					<div class="mt-4 flex justify-end pt-4 border-t">
-						<Button type="submit" disabled={isSaving || availableBooks.length === 0}>
+						<Button type="submit" class="w-full sm:w-auto" disabled={isSaving || availableBooks.length === 0}>
 							{#if isSaving}
 								<Loader2 class="h-4 w-4 mr-2 animate-spin" />
 							{/if}
