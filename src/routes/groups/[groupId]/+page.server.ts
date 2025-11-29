@@ -245,6 +245,18 @@ export const load: PageServerLoad = async (event) => {
       ...item.books,
     }))
 
+  // Transform reading list for the manage component
+  const readingListBooks = typedReadingList
+    .filter((item) => item.books !== null)
+    .map((item) => ({
+      id: item.books!.id,
+      groupBookId: item.id,
+      google_books_id: item.books!.google_books_id,
+      title: item.books!.title,
+      authors: item.books!.authors,
+      cover_url: item.books!.cover_url,
+    }))
+
   return {
     group: {
       id: typedGroup.id,
@@ -261,6 +273,7 @@ export const load: PageServerLoad = async (event) => {
     members: typedMembers,
     ratings,
     upNextBooks,
+    readingListBooks,
     currentUserId: user.id,
   }
 }

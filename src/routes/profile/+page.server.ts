@@ -35,17 +35,22 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(303, '/login')
   }
 
-  // Run all queries in parallel for faster loading
+  // Get user profile
+  const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+
+  if (!profileData) {
+    throw redirect(303, '/login')
+  }
+
+  const profile = profileData as Profile
+
+  // Run remaining queries in parallel for faster loading
   const [
-    profileResult,
     wishlistCountResult,
     completedCountResult,
     currentlyReadingCountResult,
     currentlyReadingResult,
   ] = await Promise.all([
-    // Get user profile
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-
     // Get wishlist count
     supabase
       .from('wishlists')
@@ -92,17 +97,13 @@ export const load: PageServerLoad = async (event) => {
       .limit(6),
   ])
 
-  if (!profileResult.data) {
-    throw redirect(303, '/login')
-  }
-
   const currentlyReadingItems =
     (currentlyReadingResult.data as CurrentlyReadingItem[] | null)?.filter(
       (item) => item.books !== null
     ) ?? []
 
   return {
-    profile: profileResult.data as Profile,
+    profile,
     wishlistCount: wishlistCountResult.count || 0,
     completedCount: completedCountResult.count || 0,
     currentlyReadingCount: currentlyReadingCountResult.count || 0,

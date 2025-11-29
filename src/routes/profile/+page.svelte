@@ -2,6 +2,7 @@
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import StatCard from '$lib/components/ui/stat-card.svelte';
+	import CurrentlyReadingSection from '$lib/components/profile/currently-reading-section.svelte';
 	import { User, BookCheck, BookOpen, BookMarked, LogOut, Settings } from 'lucide-svelte';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -54,6 +55,9 @@
 			/>
 			<StatCard icon={BookCheck} value={data.completedCount} label="Completed" href="/completed" />
 		</div>
+
+		<!-- Currently Reading Section -->
+		<CurrentlyReadingSection books={data.currentlyReading} class="mb-8" />
 
 		<!-- Actions -->
 		<div class="space-y-3">

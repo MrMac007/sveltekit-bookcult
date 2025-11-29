@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { invalidate } from '$app/navigation';
   import { createClient } from '$lib/supabase/client';
+  import { Toaster } from 'svelte-sonner';
 
   // Create Supabase client
   const supabase = createClient();
@@ -28,4 +29,5 @@
   <meta name="description" content="Discover, track, and share your reading journey" />
 </svelte:head>
 
+<Toaster richColors position="top-center" />
 {@render children()}

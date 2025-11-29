@@ -110,6 +110,7 @@ export const load: PageServerLoad = async (event) => {
 
   return {
     book: typedBook,
+    user,
     isInWishlist: !!wishlistItem,
     isCompleted: !!completedBook,
     isCurrentlyReading: !!currentlyReadingItem,

@@ -10,6 +10,7 @@
 	<div class="mx-auto max-w-2xl px-4 py-6">
 		<BookDetail
 			book={data.book}
+			user={data.user}
 			isInWishlist={data.isInWishlist}
 			isCurrentlyReading={data.isCurrentlyReading}
 			isCompleted={data.isCompleted}

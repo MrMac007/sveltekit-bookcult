@@ -1,184 +1,292 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { createClient } from '$lib/supabase/client';
 	import { Button } from '$lib/components/ui/button';
-	import { BookMarked, BookOpen, BookCheck, Check } from 'lucide-svelte';
+	import { BookMarked, BookOpen, BookCheck, Loader2 } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
+	import type { BookCardData } from '$lib/types/api';
+	import type { User } from '@supabase/supabase-js';
 
 	interface Props {
-		bookId: string;
+		user: User;
+		book: BookCardData;
 		isInWishlist?: boolean;
-		isCurrentlyReading?: boolean;
 		isCompleted?: boolean;
-		showCompleteButton?: boolean;
-		layout?: 'horizontal' | 'vertical';
+		isCurrentlyReading?: boolean;
+		onStatusChange?: () => void;
 		class?: string;
+		layout?: 'horizontal' | 'vertical';
 	}
 
 	let {
-		bookId,
+		user,
+		book,
 		isInWishlist = false,
-		isCurrentlyReading = false,
 		isCompleted = false,
-		showCompleteButton = true,
-		layout = 'horizontal',
-		class: className = ''
+		isCurrentlyReading = false,
+		onStatusChange,
+		class: className = '',
+		layout = 'horizontal'
 	}: Props = $props();
 
-	let isSubmitting = $state(false);
-	let actionMessage = $state('');
+	const supabase = createClient();
 
-	// Reactive values for optimistic UI updates
-	let optimisticWishlist = $state(isInWishlist);
-	let optimisticReading = $state(isCurrentlyReading);
-	let optimisticCompleted = $state(isCompleted);
+	let addingToWishlist = $state(false);
+	let togglingReading = $state(false);
+	let markingComplete = $state(false);
 
-	// Update optimistic values when props change
+	// Local state mirrors
+	let localIsInWishlist = $state(isInWishlist);
+	let localIsCurrentlyReading = $state(isCurrentlyReading);
+	let localIsCompleted = $state(isCompleted);
+
+	// Sync external props to local state
 	$effect(() => {
-		optimisticWishlist = isInWishlist;
+		localIsInWishlist = isInWishlist;
+		localIsCurrentlyReading = isCurrentlyReading;
+		localIsCompleted = isCompleted;
 	});
 
-	$effect(() => {
-		optimisticReading = isCurrentlyReading;
-	});
-
-	$effect(() => {
-		optimisticCompleted = isCompleted;
-	});
-
-	// Clear messages after 3 seconds
-	$effect(() => {
-		if (actionMessage) {
-			const timer = setTimeout(() => {
-				actionMessage = '';
-			}, 3000);
-			return () => clearTimeout(timer);
+	/**
+	 * Ensure book exists in database and return its database ID
+	 */
+	async function ensureBookInDb(): Promise<string | null> {
+		// If the book ID is already a UUID, it's in the database
+		const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
+		if (isUUID) {
+			return book.id;
 		}
-	});
 
-	const containerClass =
-		layout === 'vertical' ? 'flex flex-col gap-3' : 'flex flex-col sm:flex-row gap-2 sm:gap-3';
+		// Try to find by google_books_id
+		if (book.google_books_id) {
+			const { data: existing } = await supabase
+				.from('books')
+				.select('id')
+				.eq('google_books_id', book.google_books_id)
+				.single();
+
+			if (existing) {
+				return (existing as { id: string }).id;
+			}
+		}
+
+		// Fetch the book from our API to create it in the database
+		const response = await fetch(`/api/books/fetch?id=${book.google_books_id || book.id}`);
+		if (!response.ok) {
+			const payload = await response.json();
+			throw new Error(payload.error || 'Unable to fetch book');
+		}
+		const payload = await response.json();
+		return payload.id;
+	}
+
+	async function handleAddToWishlist() {
+		if (addingToWishlist || localIsInWishlist || localIsCompleted) return;
+
+		addingToWishlist = true;
+		try {
+			const dbBookId = await ensureBookInDb();
+			if (!dbBookId) {
+				throw new Error('Failed to find or create book');
+			}
+
+			const { error } = await supabase.from('wishlists').insert({
+				user_id: user.id,
+				book_id: dbBookId
+			} as any);
+
+			if (error) {
+				if (error.code === '23505') {
+					// Already in wishlist
+					localIsInWishlist = true;
+					toast.info('Already in your wishlist');
+					return;
+				}
+				throw error;
+			}
+
+			localIsInWishlist = true;
+			toast.success('Added to wishlist');
+			onStatusChange?.();
+		} catch (err) {
+			console.error('Error adding to wishlist:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to add to wishlist');
+		} finally {
+			addingToWishlist = false;
+		}
+	}
+
+	async function handleToggleReading() {
+		if (togglingReading || localIsCompleted) return;
+
+		togglingReading = true;
+		try {
+			const dbBookId = await ensureBookInDb();
+			if (!dbBookId) {
+				throw new Error('Failed to find or create book');
+			}
+
+			if (localIsCurrentlyReading) {
+				// Remove from currently reading
+				const { error } = await supabase
+					.from('currently_reading')
+					.delete()
+					.eq('user_id', user.id)
+					.eq('book_id', dbBookId);
+
+				if (error) throw error;
+
+				localIsCurrentlyReading = false;
+				toast.success('Stopped reading');
+			} else {
+				// Add to currently reading
+				const { error } = await supabase.from('currently_reading').insert({
+					user_id: user.id,
+					book_id: dbBookId
+				} as any);
+
+				if (error) {
+					if (error.code === '23505') {
+						localIsCurrentlyReading = true;
+						toast.info('Already reading this book');
+						return;
+					}
+					throw error;
+				}
+
+				localIsCurrentlyReading = true;
+				toast.success('Started reading');
+			}
+
+			onStatusChange?.();
+		} catch (err) {
+			console.error('Error toggling reading status:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to update reading status');
+		} finally {
+			togglingReading = false;
+		}
+	}
+
+	async function handleMarkComplete() {
+		if (markingComplete || localIsCompleted) return;
+
+		markingComplete = true;
+		try {
+			const dbBookId = await ensureBookInDb();
+			if (!dbBookId) {
+				throw new Error('Failed to find or create book');
+			}
+
+			// Remove from wishlist if present
+			await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', dbBookId);
+
+			// Remove from currently reading if present
+			await supabase
+				.from('currently_reading')
+				.delete()
+				.eq('user_id', user.id)
+				.eq('book_id', dbBookId);
+
+			// Add to completed books
+			const { error } = await supabase.from('completed_books').insert({
+				user_id: user.id,
+				book_id: dbBookId
+			} as any);
+
+			if (error) {
+				if (error.code === '23505') {
+					// Already completed, redirect to rate
+					goto(`/rate/${dbBookId}`);
+					return;
+				}
+				throw error;
+			}
+
+			localIsCompleted = true;
+			localIsInWishlist = false;
+			localIsCurrentlyReading = false;
+			onStatusChange?.();
+
+			// Redirect to rating page
+			goto(`/rate/${dbBookId}`);
+		} catch (err) {
+			console.error('Error marking as complete:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to mark as complete');
+			markingComplete = false;
+		}
+	}
+
+	const layoutClasses = layout === 'vertical' ? 'flex-col' : 'flex-row';
 </script>
 
-<div class="{containerClass} {className}">
-	{#if !optimisticCompleted}
-		<!-- Wishlist Toggle Button -->
-		<form
-			method="POST"
-			action={optimisticWishlist ? '?/removeFromWishlist' : '?/addToWishlist'}
-			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
-			use:enhance={() => {
-				isSubmitting = true;
-				optimisticWishlist = !optimisticWishlist;
-				return async ({ result, update }) => {
-					await update();
-					isSubmitting = false;
-					if (result.type === 'success' && result.data) {
-						const data = result.data as { message?: string };
-						if (data.message) {
-							actionMessage = data.message;
-						}
-					}
-				};
-			}}
+<div class="flex gap-2 {layoutClasses} {className}">
+	<!-- Want to Read Button -->
+	{#if !localIsInWishlist && !localIsCompleted}
+		<Button
+			size="sm"
+			variant="default"
+			onclick={handleAddToWishlist}
+			disabled={addingToWishlist}
+			class="flex-1"
 		>
-			<Button
-				type="submit"
-				variant={optimisticWishlist ? 'outline' : 'default'}
-				disabled={isSubmitting}
-				class="w-full text-xs sm:text-sm"
-			>
-				<BookMarked class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-				{#if optimisticWishlist}
-					<span class="hidden sm:inline">Remove from Wishlist</span>
-					<span class="sm:hidden">Remove</span>
-				{:else}
-					<span class="hidden sm:inline">Add to Wishlist</span>
-					<span class="sm:hidden">Wishlist</span>
-				{/if}
-			</Button>
-		</form>
-
-		<!-- Start/Stop Reading Button -->
-		<form
-			method="POST"
-			action={optimisticReading ? '?/stopReading' : '?/startReading'}
-			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
-			use:enhance={() => {
-				isSubmitting = true;
-				optimisticReading = !optimisticReading;
-				return async ({ result, update }) => {
-					await update();
-					isSubmitting = false;
-					if (result.type === 'success' && result.data) {
-						const data = result.data as { message?: string };
-						if (data.message) {
-							actionMessage = data.message;
-						}
-					}
-				};
-			}}
-		>
-			<Button
-				type="submit"
-				variant="outline"
-				disabled={isSubmitting}
-				class="w-full text-xs sm:text-sm"
-			>
-				{#if optimisticReading}
-					<Check class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-					Reading
-				{:else}
-					<BookOpen class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-					<span class="hidden sm:inline">Start Reading</span>
-					<span class="sm:hidden">Reading</span>
-				{/if}
-			</Button>
-		</form>
+			{#if addingToWishlist}
+				<Loader2 class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+				Adding...
+			{:else}
+				<BookMarked class="mr-1.5 h-3.5 w-3.5" />
+				Want to Read
+			{/if}
+		</Button>
+	{:else if localIsInWishlist && !localIsCompleted}
+		<Button size="sm" variant="secondary" disabled class="flex-1">
+			<BookMarked class="mr-1.5 h-3.5 w-3.5" />
+			In Wishlist
+		</Button>
 	{/if}
 
-	<!-- Mark Complete Button -->
-	{#if showCompleteButton}
-		<form
-			method="POST"
-			action="?/markComplete"
-			class={layout === 'vertical' ? 'w-full' : 'w-full sm:flex-1'}
-			use:enhance={() => {
-				isSubmitting = true;
-				optimisticCompleted = true;
-				return async ({ result, update }) => {
-					await update();
-					isSubmitting = false;
-					if (result.type === 'success' && result.data) {
-						const data = result.data as { message?: string };
-						if (data.message) {
-							actionMessage = data.message;
-						}
-					}
-				};
-			}}
+	<!-- Mark as Reading Button -->
+	{#if !localIsCompleted}
+		<Button
+			size="sm"
+			variant={localIsCurrentlyReading ? 'secondary' : 'outline'}
+			onclick={handleToggleReading}
+			disabled={togglingReading}
+			class="flex-1"
 		>
-			<Button
-				type="submit"
-				variant={optimisticCompleted ? 'secondary' : 'outline'}
-				disabled={isSubmitting || optimisticCompleted}
-				class="w-full text-xs sm:text-sm"
-			>
-				<BookCheck class="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-				{#if optimisticCompleted}
-					Completed
-				{:else}
-					<span class="hidden sm:inline">Mark Complete</span>
-					<span class="sm:hidden">Complete</span>
-				{/if}
-			</Button>
-		</form>
+			{#if togglingReading}
+				<Loader2 class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+				{localIsCurrentlyReading ? 'Stopping...' : 'Starting...'}
+			{:else if localIsCurrentlyReading}
+				<BookOpen class="mr-1.5 h-3.5 w-3.5" />
+				Currently Reading
+			{:else}
+				<BookOpen class="mr-1.5 h-3.5 w-3.5" />
+				Mark as Reading
+			{/if}
+		</Button>
+	{/if}
+
+	<!-- Mark as Complete Button -->
+	{#if !localIsCompleted}
+		<Button
+			size="sm"
+			variant="outline"
+			onclick={handleMarkComplete}
+			disabled={markingComplete}
+			class="flex-1"
+		>
+			{#if markingComplete}
+				<Loader2 class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+				Completing...
+			{:else}
+				<BookCheck class="mr-1.5 h-3.5 w-3.5" />
+				Mark as Complete
+			{/if}
+		</Button>
+	{:else}
+		<Button size="sm" variant="secondary" disabled class="flex-1">
+			<BookCheck class="mr-1.5 h-3.5 w-3.5" />
+			Completed
+		</Button>
 	{/if}
 </div>
-
-<!-- Action Message Toast -->
-{#if actionMessage}
-	<div
-		class="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
-	>
-		{actionMessage}
-	</div>
-{/if}

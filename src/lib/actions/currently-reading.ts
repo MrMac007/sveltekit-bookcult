@@ -1,22 +1,47 @@
 /**
- * Centralized actions for managing currently reading books
- * Provides reusable server actions for adding, removing, and querying currently reading status
+ * Server actions for managing currently reading books.
+ * Used for tracking what users are currently reading, optionally with group context.
  */
 
 import { createClient } from '$lib/supabase/server'
 import type { RequestEvent } from '@sveltejs/kit'
 
+export interface CurrentlyReadingBook {
+  id: string
+  started_at: string
+  group_id: string | null
+  books: {
+    id: string
+    title: string
+    authors: string[]
+    cover_url: string | null
+    google_books_id: string | null
+  }
+  groups: {
+    id: string
+    name: string
+  } | null
+}
+
+export interface CurrentlyReadingMember {
+  id: string
+  started_at: string
+  profiles: {
+    id: string
+    username: string
+    display_name: string | null
+    avatar_url: string | null
+  }
+}
+
 /**
- * Add a book to currently reading
- * @param event - SvelteKit request event
- * @param bookId - ID of the book to add
- * @param groupId - Optional group ID to associate with this reading session
+ * Add a book to the user's currently reading list
  */
 export async function addToCurrentlyReading(
   event: RequestEvent,
   bookId: string,
   groupId?: string | null
-) {
+): Promise<{ success?: boolean; error?: string }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
@@ -24,37 +49,76 @@ export async function addToCurrentlyReading(
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { success: false, error: 'Not authenticated' }
+    return { error: 'You must be logged in' }
   }
 
   try {
-    const { error } = await db.from('currently_reading').insert({
+    // Check if book exists
+    const { data: book, error: bookError } = await db
+      .from('books')
+      .select('id')
+      .eq('id', bookId)
+      .single()
+
+    if (bookError || !book) {
+      return { error: 'Book not found' }
+    }
+
+    // Check if already reading
+    const { data: existing } = await db
+      .from('currently_reading')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('book_id', bookId)
+      .maybeSingle()
+
+    if (existing) {
+      return { error: 'Book is already in your currently reading list' }
+    }
+
+    // If group is specified, verify membership
+    if (groupId) {
+      const { data: membership } = await db
+        .from('group_members')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!membership) {
+        return { error: 'You must be a group member to read with this group' }
+      }
+    }
+
+    // Insert into currently reading
+    const { error: insertError } = await db.from('currently_reading').insert({
       user_id: user.id,
       book_id: bookId,
       group_id: groupId || null,
     })
 
-    if (error) {
+    if (insertError) {
       // Handle unique constraint violation
-      if (error.code === '23505') {
-        return { success: true, message: 'Already reading this book' }
+      if (insertError.code === '23505') {
+        return { success: true }
       }
-      throw error
+      throw insertError
     }
 
-    return { success: true, message: 'Started reading!' }
+    return { success: true }
   } catch (error) {
     console.error('Error adding to currently reading:', error)
-    return { success: false, error: 'Failed to add to currently reading' }
+    return { error: 'Failed to add book to currently reading' }
   }
 }
 
 /**
- * Remove a book from currently reading
- * @param event - SvelteKit request event
- * @param bookId - ID of the book to remove
+ * Remove a book from the user's currently reading list
  */
-export async function removeFromCurrentlyReading(event: RequestEvent, bookId: string) {
+export async function removeFromCurrentlyReading(
+  event: RequestEvent,
+  bookId: string
+): Promise<{ success?: boolean; error?: string }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
@@ -62,7 +126,7 @@ export async function removeFromCurrentlyReading(event: RequestEvent, bookId: st
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { success: false, error: 'Not authenticated' }
+    return { error: 'You must be logged in' }
   }
 
   try {
@@ -74,56 +138,22 @@ export async function removeFromCurrentlyReading(event: RequestEvent, bookId: st
 
     if (error) throw error
 
-    return { success: true, message: 'Stopped reading' }
+    return { success: true }
   } catch (error) {
     console.error('Error removing from currently reading:', error)
-    return { success: false, error: 'Failed to remove from currently reading' }
+    return { error: 'Failed to remove book from currently reading' }
   }
 }
 
 /**
- * Remove a currently reading record by its ID (useful when there might be multiple entries)
- * @param event - SvelteKit request event
- * @param recordId - ID of the currently_reading record to remove
- */
-export async function removeCurrentlyReadingRecord(event: RequestEvent, recordId: string) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' }
-  }
-
-  try {
-    const { error } = await db
-      .from('currently_reading')
-      .delete()
-      .eq('id', recordId)
-      .eq('user_id', user.id)
-
-    if (error) throw error
-
-    return { success: true, message: 'Stopped reading' }
-  } catch (error) {
-    console.error('Error removing currently reading record:', error)
-    return { success: false, error: 'Failed to remove from currently reading' }
-  }
-}
-
-/**
- * Toggle currently reading status for a book
- * @param event - SvelteKit request event
- * @param bookId - ID of the book to toggle
- * @param groupId - Optional group ID to associate with this reading session
+ * Toggle a book's currently reading status
+ * Adds if not reading, removes if reading
  */
 export async function toggleCurrentlyReading(
   event: RequestEvent,
   bookId: string,
   groupId?: string | null
-) {
+): Promise<{ success?: boolean; error?: string; isReading?: boolean }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
@@ -131,7 +161,7 @@ export async function toggleCurrentlyReading(
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { success: false, error: 'Not authenticated' }
+    return { error: 'You must be logged in' }
   }
 
   try {
@@ -144,133 +174,119 @@ export async function toggleCurrentlyReading(
       .maybeSingle()
 
     if (existing) {
-      // Remove if exists
-      const { error } = await db
-        .from('currently_reading')
-        .delete()
-        .eq('id', existing.id)
-        .eq('user_id', user.id)
-
-      if (error) throw error
-      return { success: true, message: 'Stopped reading', isReading: false }
+      // Remove from currently reading
+      const result = await removeFromCurrentlyReading(event, bookId)
+      return { ...result, isReading: false }
     } else {
-      // Add if doesn't exist
-      const { error } = await db.from('currently_reading').insert({
-        user_id: user.id,
-        book_id: bookId,
-        group_id: groupId || null,
-      })
-
-      if (error) throw error
-      return { success: true, message: 'Started reading!', isReading: true }
+      // Add to currently reading
+      const result = await addToCurrentlyReading(event, bookId, groupId)
+      return { ...result, isReading: true }
     }
   } catch (error) {
     console.error('Error toggling currently reading:', error)
-    return { success: false, error: 'Failed to update reading status' }
+    return { error: 'Failed to update reading status' }
   }
 }
 
 /**
- * Get all currently reading books for a user
- * @param event - SvelteKit request event
- * @param userId - Optional user ID (defaults to authenticated user)
+ * Get currently reading books for a user
+ * Includes book details and optional group context
  */
-export async function getCurrentlyReading(event: RequestEvent, userId?: string) {
+export async function getCurrentlyReading(
+  event: RequestEvent,
+  userId?: string
+): Promise<{ data: CurrentlyReadingBook[]; error?: string }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user && !userId) {
-    return { success: false, error: 'Not authenticated' }
-  }
-
+  // Use provided userId or fall back to current user
   const targetUserId = userId || user?.id
+
+  if (!targetUserId) {
+    return { data: [], error: 'No user specified' }
+  }
 
   try {
     const { data, error } = await db
       .from('currently_reading')
-      .select(
-        `
+      .select(`
         id,
         started_at,
         group_id,
         books:book_id (
           id,
-          google_books_id,
           title,
           authors,
           cover_url,
-          description,
-          page_count,
-          published_date
+          google_books_id
         ),
         groups:group_id (
           id,
           name
         )
-      `
-      )
+      `)
       .eq('user_id', targetUserId)
       .order('started_at', { ascending: false })
 
     if (error) throw error
 
-    const items = data?.filter((item: any) => item.books !== null) ?? []
-
-    return { success: true, data: items }
+    return { data: data || [] }
   } catch (error) {
-    console.error('Error fetching currently reading:', error)
-    return { success: false, error: 'Failed to fetch currently reading books' }
+    console.error('Error getting currently reading:', error)
+    return { data: [], error: 'Failed to load currently reading books' }
   }
 }
 
 /**
  * Check if a user is currently reading a specific book
- * @param event - SvelteKit request event
- * @param bookId - ID of the book to check
- * @param userId - Optional user ID (defaults to authenticated user)
  */
 export async function isCurrentlyReading(
   event: RequestEvent,
   bookId: string,
   userId?: string
-): Promise<boolean> {
+): Promise<{ isReading: boolean; groupId?: string | null }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user && !userId) {
-    return false
-  }
-
+  // Use provided userId or fall back to current user
   const targetUserId = userId || user?.id
+
+  if (!targetUserId) {
+    return { isReading: false }
+  }
 
   try {
     const { data } = await db
       .from('currently_reading')
-      .select('id')
+      .select('id, group_id')
       .eq('user_id', targetUserId)
       .eq('book_id', bookId)
       .maybeSingle()
 
-    return !!data
+    return {
+      isReading: !!data,
+      groupId: data?.group_id || null,
+    }
   } catch (error) {
     console.error('Error checking currently reading status:', error)
-    return false
+    return { isReading: false }
   }
 }
 
 /**
- * Get group members who are currently reading a specific book
- * @param event - SvelteKit request event
- * @param groupId - ID of the group
- * @param bookId - ID of the book
+ * Get all group members who are currently reading a specific book
  */
-export async function getMembersReading(event: RequestEvent, groupId: string, bookId: string) {
+export async function getMembersReading(
+  event: RequestEvent,
+  groupId: string,
+  bookId: string
+): Promise<{ data: CurrentlyReadingMember[]; error?: string }> {
   const supabase = createClient(event)
   const db = supabase as any
   const {
@@ -278,69 +294,44 @@ export async function getMembersReading(event: RequestEvent, groupId: string, bo
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { success: false, error: 'Not authenticated' }
+    return { data: [], error: 'You must be logged in' }
   }
 
   try {
+    // First verify the user is a member of this group
+    const { data: membership } = await db
+      .from('group_members')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!membership) {
+      return { data: [], error: 'You must be a group member to view this' }
+    }
+
+    // Get all members reading this book in this group
     const { data, error } = await db
       .from('currently_reading')
-      .select(
-        `
+      .select(`
         id,
         started_at,
-        user_id,
         profiles:user_id (
           id,
           username,
           display_name,
           avatar_url
         )
-      `
-      )
+      `)
       .eq('group_id', groupId)
       .eq('book_id', bookId)
       .order('started_at', { ascending: true })
 
     if (error) throw error
 
-    const members = data?.filter((item: any) => item.profiles !== null) ?? []
-
-    return { success: true, data: members }
+    return { data: data || [] }
   } catch (error) {
-    console.error('Error fetching members reading:', error)
-    return { success: false, error: 'Failed to fetch reading members' }
-  }
-}
-
-/**
- * Get count of currently reading books for a user
- * @param event - SvelteKit request event
- * @param userId - Optional user ID (defaults to authenticated user)
- */
-export async function getCurrentlyReadingCount(event: RequestEvent, userId?: string) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user && !userId) {
-    return { success: false, error: 'Not authenticated', count: 0 }
-  }
-
-  const targetUserId = userId || user?.id
-
-  try {
-    const { count, error } = await db
-      .from('currently_reading')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', targetUserId)
-
-    if (error) throw error
-
-    return { success: true, count: count || 0 }
-  } catch (error) {
-    console.error('Error fetching currently reading count:', error)
-    return { success: false, error: 'Failed to fetch count', count: 0 }
+    console.error('Error getting members reading:', error)
+    return { data: [], error: 'Failed to load members reading this book' }
   }
 }

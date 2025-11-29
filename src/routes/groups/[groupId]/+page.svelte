@@ -5,6 +5,7 @@
 	import CurrentBookSection from '$lib/components/groups/current-book-section.svelte';
 	import GroupRatings from '$lib/components/groups/group-ratings.svelte';
 	import UpNextSection from '$lib/components/groups/up-next-section.svelte';
+	import ManageReadingList from '$lib/components/groups/manage-reading-list.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -42,6 +43,19 @@
 							isAdmin={data.group.isAdmin}
 							groupId={data.group.id}
 						/>
+
+						{#if data.group.isAdmin}
+							<ManageReadingList
+								group={{
+									id: data.group.id,
+									name: data.group.name,
+									current_book_id: data.group.current_book_id
+								}}
+								userId={data.currentUserId}
+								initialBooks={data.readingListBooks}
+								isAdmin={data.group.isAdmin}
+							/>
+						{/if}
 					</div>
 				</div>
 		</div>

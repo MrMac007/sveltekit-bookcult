@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -9,6 +10,7 @@
 	import StatCard from '$lib/components/ui/stat-card.svelte';
 	import { formatDate } from '$lib/utils/date';
 	import type { Database } from '$lib/types/database';
+	import type { User } from '@supabase/supabase-js';
 
 	type Book = Database['public']['Tables']['books']['Row'];
 	type UserRating = {
@@ -30,6 +32,7 @@
 
 	interface Props {
 		book: Book;
+		user?: User | null;
 		isInWishlist?: boolean;
 		isCurrentlyReading?: boolean;
 		isCompleted?: boolean;
@@ -42,6 +45,7 @@
 
 	let {
 		book,
+		user = null,
 		isInWishlist = false,
 		isCurrentlyReading = false,
 		isCompleted = false,
@@ -51,6 +55,10 @@
 		showTitle = true,
 		class: className = ''
 	}: Props = $props();
+
+	function handleStatusChange() {
+		invalidateAll();
+	}
 
 	let isEnhancing = $state(false);
 
@@ -149,14 +157,27 @@
 	</div>
 
 	<!-- Action Buttons -->
-	{#if showActions}
+	{#if showActions && user}
 		<div class="mb-6">
 			<BookActions
-				bookId={book.id}
+				{user}
+				book={{
+					id: book.id,
+					google_books_id: book.google_books_id,
+					title: book.title,
+					authors: book.authors,
+					cover_url: book.cover_url,
+					description: book.description,
+					published_date: book.published_date,
+					page_count: book.page_count,
+					categories: book.categories,
+					isbn_10: book.isbn_10,
+					isbn_13: book.isbn_13
+				}}
 				{isInWishlist}
 				{isCurrentlyReading}
 				{isCompleted}
-				showCompleteButton={true}
+				onStatusChange={handleStatusChange}
 			/>
 		</div>
 	{/if}
