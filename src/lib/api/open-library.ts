@@ -165,8 +165,7 @@ export class OpenLibraryAPI {
 		].join(','));
 		// Sort by editions (popularity proxy) - books with more editions are more well-known
 		url.searchParams.set('sort', 'editions');
-		// Only include books in English by default for better relevance
-		url.searchParams.set('language', 'eng');
+		// NOTE: Removed language=eng filter as it's too restrictive and doesn't work well with Open Library
 
 		const response = await fetch(url.toString(), {
 			headers: {
@@ -178,7 +177,8 @@ export class OpenLibraryAPI {
 			throw new Error(`Open Library API error: ${response.statusText}`);
 		}
 
-		return response.json();
+		const data = await response.json();
+		return data;
 	}
 
 	/**

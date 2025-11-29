@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
-	import { Search, Loader2, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { Search, Loader2 } from 'lucide-svelte';
 	import BookCard from './book-card.svelte';
 	import type { BookCardData } from '$lib/types/api';
 	import { createClient } from '$lib/supabase/client';
@@ -18,8 +18,6 @@
 	const supabase = createClient();
 
 	let searchQuery = $state('');
-	let authorQuery = $state('');
-	let showAdvanced = $state(false);
 	let searchResults = $state<BookCardData[]>([]);
 	let isSearching = $state(false);
 	let hasSearched = $state(false);
@@ -59,11 +57,7 @@
 		hasShownApiResults = false;
 
 		try {
-			let url = `/api/books/search?q=${encodeURIComponent(query)}&source=database`;
-			if (authorQuery.trim()) {
-				url += `&author=${encodeURIComponent(authorQuery.trim())}`;
-			}
-
+			const url = `/api/books/search?q=${encodeURIComponent(query)}&source=database`;
 			const response = await fetch(url);
 			if (!response.ok) {
 				throw new Error('Failed to search books');
@@ -88,11 +82,7 @@
 
 		isLoadingMore = true;
 		try {
-			let url = `/api/books/search?q=${encodeURIComponent(query)}&source=api`;
-			if (authorQuery.trim()) {
-				url += `&author=${encodeURIComponent(authorQuery.trim())}`;
-			}
-
+			const url = `/api/books/search?q=${encodeURIComponent(query)}&source=api`;
 			const response = await fetch(url);
 			if (!response.ok) {
 				throw new Error('Failed to load additional results');
@@ -318,34 +308,6 @@
 					{/if}
 				</Button>
 			</div>
-
-			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					onclick={() => (showAdvanced = !showAdvanced)}
-					class="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-				>
-					{#if showAdvanced}
-						<ChevronUp class="h-3 w-3" />
-						Hide filters
-					{:else}
-						<ChevronDown class="h-3 w-3" />
-						Show filters
-					{/if}
-				</button>
-			</div>
-
-			{#if showAdvanced}
-				<div class="pt-1">
-					<Input
-						id="author"
-						type="text"
-						placeholder="Filter by author (optional)"
-						bind:value={authorQuery}
-						class="h-10"
-					/>
-				</div>
-			{/if}
 		</div>
 	</form>
 
