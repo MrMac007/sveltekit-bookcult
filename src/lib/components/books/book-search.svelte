@@ -29,8 +29,6 @@
 	let userWishlist = $state<Set<string>>(new Set());
 	let userCompleted = $state<Set<string>>(new Set());
 
-	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-
 	onMount(() => {
 		if (userId) {
 			loadUserBookStatuses();
@@ -40,21 +38,12 @@
 	function handleSearchInput(value: string) {
 		searchQuery = value;
 
-		if (searchTimeout) {
-			clearTimeout(searchTimeout);
-		}
-
 		if (!value.trim()) {
 			searchResults = [];
 			hasSearched = false;
 			hadDatabaseResults = false;
 			hasShownApiResults = false;
-			return;
 		}
-
-		searchTimeout = setTimeout(() => {
-			performSearch();
-		}, 500);
 	}
 
 	async function performSearch() {
@@ -128,20 +117,7 @@
 
 	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		if (searchTimeout) {
-			clearTimeout(searchTimeout);
-		}
 		performSearch();
-	}
-
-	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			if (searchTimeout) {
-				clearTimeout(searchTimeout);
-			}
-			performSearch();
-		}
 	}
 
 	async function loadUserBookStatuses() {
@@ -320,18 +296,27 @@
 <div>
 	<form onsubmit={handleSubmit} class="mb-8">
 		<div class="space-y-3">
-			<div class="relative">
-				<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					type="search"
-					placeholder="Search by title..."
-					class="h-12 pl-9"
-					value={searchQuery}
-					oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
-				/>
-				{#if isSearching}
-					<Loader2 class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-				{/if}
+			<div class="flex gap-2">
+				<div class="relative flex-1">
+					<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						type="search"
+						placeholder="Search by title (press Enter or click Search)..."
+						class="h-12 pl-9"
+						value={searchQuery}
+						oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
+					/>
+					{#if isSearching}
+						<Loader2 class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+					{/if}
+				</div>
+				<Button type="submit" size="lg" disabled={isSearching || !searchQuery.trim()}>
+					{#if isSearching}
+						<Loader2 class="h-4 w-4 animate-spin" />
+					{:else}
+						Search
+					{/if}
+				</Button>
 			</div>
 
 			<div class="flex items-center gap-2">
@@ -357,7 +342,6 @@
 						type="text"
 						placeholder="Filter by author (optional)"
 						bind:value={authorQuery}
-						onkeydown={handleKeyDown}
 						class="h-10"
 					/>
 				</div>
