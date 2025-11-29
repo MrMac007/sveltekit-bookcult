@@ -18,7 +18,7 @@ export interface Database {
           display_name: string | null
           avatar_url: string | null
           bio: string | null
-          wall_style: WallStyle
+          wall_style: WallStyle | null
           created_at: string
           updated_at: string
         }
