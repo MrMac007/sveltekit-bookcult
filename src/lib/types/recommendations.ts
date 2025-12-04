@@ -1,5 +1,5 @@
 export interface Recommendation {
-  google_books_id: string
+  open_library_key: string
   title: string
   authors: string[]
   cover_url?: string

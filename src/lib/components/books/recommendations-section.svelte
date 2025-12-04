@@ -59,12 +59,12 @@
 		try {
 			const { data } = await supabase
 				.from('wishlists')
-				.select('books(google_books_id)')
+				.select('books(open_library_key)')
 				.eq('user_id', userId);
 
 			const ids = new Set(
 				(data || [])
-					.map((item: any) => item.books?.google_books_id)
+					.map((item: any) => item.books?.open_library_key)
 					.filter((id: string | null): id is string => Boolean(id))
 			);
 			wishlistIds = ids;
@@ -73,10 +73,10 @@
 		}
 	}
 
-	async function handleAddToWishlist(googleBooksId: string) {
-		if (addingToWishlist === googleBooksId) return;
+	async function handleAddToWishlist(openLibraryKey: string) {
+		if (addingToWishlist === openLibraryKey) return;
 
-		addingToWishlist = googleBooksId;
+		addingToWishlist = openLibraryKey;
 		try {
 			const {
 				data: { user },
@@ -91,14 +91,14 @@
 			const { data: existingBook } = await supabase
 				.from('books')
 				.select('id')
-				.eq('google_books_id', googleBooksId)
+				.eq('open_library_key', openLibraryKey)
 				.single();
 
 			const typedExisting = existingBook as { id: string } | null;
 			let dbBookId = typedExisting?.id;
 
 			if (!dbBookId) {
-				const response = await fetch(`/api/books/fetch?id=${googleBooksId}`);
+				const response = await fetch(`/api/books/fetch?id=${openLibraryKey}`);
 				if (!response.ok) {
 					const payload = await response.json();
 					throw new Error(payload.error || 'Unable to fetch book');
@@ -115,12 +115,12 @@
 				throw insertError;
 			}
 
-			wishlistIds = new Set([...wishlistIds, googleBooksId]);
+			wishlistIds = new Set([...wishlistIds, openLibraryKey]);
 
 			await fetch('/api/recommendations/track', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ bookId: googleBooksId }),
+				body: JSON.stringify({ bookId: openLibraryKey }),
 			});
 		} catch (err) {
 			console.error('Error adding to wishlist:', err);
@@ -206,7 +206,7 @@
 									<ChevronLeft class="h-5 w-5" />
 								</button>
 								<div class="flex gap-3">
-									{#each recommendations as rec, index (rec.google_books_id)}
+									{#each recommendations as rec, index (rec.open_library_key)}
 										<button
 											type="button"
 											class={`relative h-24 w-16 overflow-hidden rounded-md transition-all ${
@@ -241,7 +241,7 @@
 							</div>
 
 							<div class="flex flex-col gap-4">
-								<a href={`/book/${recommendations[currentIndex].google_books_id}`}>
+								<a href={`/book/${recommendations[currentIndex].open_library_key}`}>
 									<h3 class="text-xl font-bold transition-colors hover:text-primary">
 										{recommendations[currentIndex].title}
 									</h3>
@@ -258,14 +258,14 @@
 									{recommendations[currentIndex].blurb}
 								</p>
 
-								{#if !wishlistIds.has(recommendations[currentIndex].google_books_id)}
-									<button
-										type="button"
-										class="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-										onclick={() => handleAddToWishlist(recommendations[currentIndex].google_books_id)}
-										disabled={addingToWishlist === recommendations[currentIndex].google_books_id}
-									>
-										{#if addingToWishlist === recommendations[currentIndex].google_books_id}
+							{#if !wishlistIds.has(recommendations[currentIndex].open_library_key)}
+								<button
+									type="button"
+									class="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+									onclick={() => handleAddToWishlist(recommendations[currentIndex].open_library_key)}
+									disabled={addingToWishlist === recommendations[currentIndex].open_library_key}
+								>
+									{#if addingToWishlist === recommendations[currentIndex].open_library_key}
 											<span class="flex items-center gap-2">
 												<Loader2 class="h-5 w-5 animate-spin" />
 												<span>Adding...</span>

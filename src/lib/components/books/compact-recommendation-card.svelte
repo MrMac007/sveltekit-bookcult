@@ -13,13 +13,13 @@
 	function handleAdd(e: MouseEvent) {
 		e.preventDefault();
 		if (isInWishlist) return;
-		onAddToWishlist(book.google_books_id);
+		onAddToWishlist(book.open_library_key);
 	}
 </script>
 
 <div class="flex h-full w-full flex-col">
 	<a
-		href={`/book/${book.google_books_id}`}
+		href={`/book/${book.open_library_key}`}
 		class="group relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted transition-transform hover:scale-[1.02]"
 	>
 		{#if book.cover_url}
@@ -37,7 +37,7 @@
 		{/if}
 	</a>
 
-	<a href={`/book/${book.google_books_id}`} class="mt-3 flex flex-1 flex-col">
+	<a href={`/book/${book.open_library_key}`} class="mt-3 flex flex-1 flex-col">
 		<h3 class="text-sm font-semibold leading-tight line-clamp-3 transition-colors group-hover:text-primary">
 			{book.title}
 		</h3>

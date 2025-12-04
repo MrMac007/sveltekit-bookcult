@@ -18,7 +18,7 @@
 
 	const currentBook = $derived(books[currentIndex]);
 	const isInWishlist = $derived(
-		currentBook ? wishlistIds.has(currentBook.google_books_id) : false
+		currentBook ? wishlistIds.has(currentBook.open_library_key) : false
 	);
 
 	function startRotation() {
@@ -76,7 +76,7 @@ $effect(() => {
 	function handleAdd(e: MouseEvent) {
 		e.preventDefault();
 		if (!currentBook || isInWishlist) return;
-		onAddToWishlist(currentBook.google_books_id);
+		onAddToWishlist(currentBook.open_library_key);
 	}
 </script>
 
@@ -89,10 +89,10 @@ $effect(() => {
 	>
 		<div class="min-h-[280px] rounded-lg border bg-card p-4">
 			<div class="flex gap-4">
-				<a
-					href={`/book/${currentBook.google_books_id}`}
-					class="relative h-44 w-32 flex-shrink-0 overflow-hidden rounded-md bg-muted transition-opacity hover:opacity-80"
-				>
+			<a
+				href={`/book/${currentBook.open_library_key}`}
+				class="relative h-44 w-32 flex-shrink-0 overflow-hidden rounded-md bg-muted transition-opacity hover:opacity-80"
+			>
 					{#if currentBook.cover_url}
 						<img
 							src={currentBook.cover_url}
@@ -114,7 +114,7 @@ $effect(() => {
 				</a>
 
 				<div class="flex flex-1 flex-col">
-					<a href={`/book/${currentBook.google_books_id}`}>
+					<a href={`/book/${currentBook.open_library_key}`}>
 						<h3 class="font-semibold leading-tight transition-colors hover:text-primary line-clamp-2">
 							{currentBook.title}
 						</h3>
@@ -133,10 +133,10 @@ $effect(() => {
 						<button
 							type="button"
 							onclick={handleAdd}
-							disabled={addingToWishlist === currentBook.google_books_id}
+							disabled={addingToWishlist === currentBook.open_library_key}
 							class="mt-auto flex items-center justify-center gap-2 rounded-md bg-primary py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
 						>
-							{#if addingToWishlist === currentBook.google_books_id}
+							{#if addingToWishlist === currentBook.open_library_key}
 								<span class="flex items-center gap-2">
 									<Loader2 class="h-4 w-4 animate-spin" />
 									<span>Adding...</span>

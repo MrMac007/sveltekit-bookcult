@@ -3,6 +3,8 @@ import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as bookActions from '$lib/actions/books'
 import { enhanceBook } from '$lib/actions/enhance-book'
+import { getOrFetchBook } from '$lib/api/book-cache'
+import { isValidUUID } from '$lib/utils/validation'
 import type { Database } from '$lib/types/database'
 
 type Book = Database['public']['Tables']['books']['Row']
@@ -18,25 +20,49 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(303, '/login')
   }
 
-  // Fetch book data
-  let { data: book, error: bookError } = await supabase
-    .from('books')
-    .select('*')
-    .eq('id', event.params.bookId)
-    .single()
+  const bookId = event.params.bookId
+  let book: Book | null = null
 
-  if (bookError || !book) {
+  // First, try to fetch by UUID (primary key)
+  if (isValidUUID(bookId)) {
+    const { data } = await supabase
+      .from('books')
+      .select('*')
+      .eq('id', bookId)
+      .single()
+    book = data as Book | null
+  }
+
+  // If not found by UUID, try by open_library_key
+  if (!book) {
+    const { data } = await supabase
+      .from('books')
+      .select('*')
+      .eq('open_library_key', bookId)
+      .single()
+    book = data as Book | null
+  }
+
+  // If still not found, try fetching from Open Library API
+  if (!book) {
+    const fetchedBook = await getOrFetchBook(bookId, supabase)
+    book = fetchedBook as Book | null
+  }
+
+  if (!book) {
     throw error(404, 'Book not found')
   }
 
-  let typedBook = book as Book
+  let typedBook = book
+
+  const dbBookId = typedBook.id
 
   // Check if book is in user's wishlist
   const { data: wishlistItem } = await supabase
     .from('wishlists')
     .select('id')
     .eq('user_id', user.id)
-    .eq('book_id', event.params.bookId)
+    .eq('book_id', dbBookId)
     .maybeSingle()
 
   // Check if book is completed by user
@@ -44,7 +70,7 @@ export const load: PageServerLoad = async (event) => {
     .from('completed_books')
     .select('id, completed_at')
     .eq('user_id', user.id)
-    .eq('book_id', event.params.bookId)
+    .eq('book_id', dbBookId)
     .maybeSingle()
 
   // Check if book is in user's currently reading
@@ -52,7 +78,7 @@ export const load: PageServerLoad = async (event) => {
     .from('currently_reading')
     .select('id')
     .eq('user_id', user.id)
-    .eq('book_id', event.params.bookId)
+    .eq('book_id', dbBookId)
     .maybeSingle()
 
   // Fetch user's rating if exists
@@ -60,7 +86,7 @@ export const load: PageServerLoad = async (event) => {
     .from('ratings')
     .select('rating, review, created_at')
     .eq('user_id', user.id)
-    .eq('book_id', event.params.bookId)
+    .eq('book_id', dbBookId)
     .maybeSingle()
 
   // Fetch group ratings (only from groups user is a member of - RLS will handle this)
@@ -80,17 +106,17 @@ export const load: PageServerLoad = async (event) => {
       )
     `
     )
-    .eq('book_id', event.params.bookId)
+    .eq('book_id', dbBookId)
     .neq('user_id', user.id) // Exclude user's own rating
     .order('created_at', { ascending: false })
 
   if (!typedBook.ai_enhanced) {
-    const result = await enhanceBook(event, event.params.bookId)
+    const result = await enhanceBook(event, dbBookId)
     if (result.success) {
       const { data: refreshed } = await supabase
         .from('books')
         .select('*')
-        .eq('id', event.params.bookId)
+        .eq('id', dbBookId)
         .single()
       if (refreshed) {
         typedBook = refreshed as Book

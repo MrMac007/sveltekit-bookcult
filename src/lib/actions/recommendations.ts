@@ -103,7 +103,7 @@ export async function trackWishlistAdd(event: RequestEvent, bookId: string): Pro
     if (!cache) return
 
     const recommendations = cache.recommendations as Recommendation[]
-    const wasRecommended = recommendations.some((rec) => rec.google_books_id === bookId)
+    const wasRecommended = recommendations.some((rec) => rec.open_library_key === bookId)
 
     if (!wasRecommended) return
 
@@ -170,7 +170,7 @@ async function generateNewRecommendations(
 
   const { data: ratings, error: ratingsError } = await supabase
     .from('ratings')
-    .select('rating, books(google_books_id, title, authors, categories)')
+    .select('rating, books(open_library_key, title, authors, categories)')
     .eq('user_id', userId)
     .gte('rating', 4.0)
     .order('rating', { ascending: false })
@@ -184,14 +184,14 @@ async function generateNewRecommendations(
   }
 
   const [{ data: wishlistBooks }, { data: completedBooks }] = await Promise.all([
-    supabase.from('wishlists').select('books(google_books_id)').eq('user_id', userId),
-    supabase.from('completed_books').select('books(google_books_id)').eq('user_id', userId),
+    supabase.from('wishlists').select('books(open_library_key)').eq('user_id', userId),
+    supabase.from('completed_books').select('books(open_library_key)').eq('user_id', userId),
   ])
 
   const excludeIds = new Set<string>([
-    ...ratings.map((r: any) => r.books.google_books_id),
-    ...(wishlistBooks || []).map((w: any) => w.books.google_books_id),
-    ...(completedBooks || []).map((c: any) => c.books.google_books_id),
+    ...ratings.map((r: any) => r.books.open_library_key),
+    ...(wishlistBooks || []).map((w: any) => w.books.open_library_key),
+    ...(completedBooks || []).map((c: any) => c.books.open_library_key),
   ])
 
   const topRatedBooks = ratings.map((r: any) => ({
@@ -221,12 +221,12 @@ async function generateNewRecommendations(
       const book =
         results.find((b) => b.title.toLowerCase() === rec.title.toLowerCase()) || results[0]
 
-      if (!book.google_books_id || excludeIds.has(book.google_books_id)) {
+      if (!book.open_library_key || excludeIds.has(book.open_library_key)) {
         continue
       }
 
       enrichedRecommendations.push({
-        google_books_id: book.google_books_id,
+        open_library_key: book.open_library_key,
         title: book.title,
         authors: book.authors,
         cover_url: book.cover_url,
