@@ -42,7 +42,7 @@ export async function generateBookRecommendations(
 		const result = await generateText({
 			model: google('gemini-2.0-flash'),
 			prompt,
-			temperature: 0.7
+			temperature: 0.5
 		});
 
 		const recommendations = parseRecommendationsResponse(result.text);
@@ -63,21 +63,41 @@ function buildRecommendationPrompt(data: RecommendationPromptData): string {
 		)
 		.join('\n');
 
-	return `You are a book recommendation expert. Based on the following books that a user has highly rated, recommend 5 books they would enjoy.
+	// Extract unique authors the user has rated highly
+	const favoriteAuthors = [...new Set(data.topRatedBooks.flatMap((book) => book.authors))];
+	const authorsSection =
+		favoriteAuthors.length > 0
+			? `\nFAVORITE AUTHORS: ${favoriteAuthors.slice(0, 5).join(', ')}`
+			: '';
+
+	return `You are a book recommendation expert specializing in popular, well-known books. Based on the following books that a user has highly rated, recommend 5 books they would enjoy.
 
 USER'S TOP-RATED BOOKS:
 ${booksList}
+${authorsSection}
+
+CRITICAL REQUIREMENTS - POPULARITY FOCUS:
+- ONLY recommend well-known, popular books that readers would recognize
+- Prioritize: New York Times bestsellers, award winners (Hugo, Nebula, Booker, Pulitzer), BookTok favorites
+- Choose books with high Goodreads ratings (4.0+) and many reviews (10,000+)
+- Recommend books commonly found in major bookstores (Barnes & Noble, Waterstones)
+- Include at least 2 books by the same authors listed above OR authors of similar popularity/style
+
+AUTHOR-BASED RECOMMENDATIONS:
+- If the user rated Sarah J. Maas highly → recommend her other series or similar authors (Jennifer L. Armentrout, Holly Black)
+- If the user rated Brandon Sanderson → recommend his other works or similar authors (Robert Jordan, Patrick Rothfuss)
+- Prioritize established, bestselling authors over debut/obscure authors
 
 INSTRUCTIONS:
 1. Recommend exactly 5 books that match the user's taste
-2. Consider genres, themes, writing style, and author similarities
-3. Provide diverse recommendations (not all from the same genre/author)
-4. DO NOT recommend books that are already in the list above
+2. At least 3 must be from widely-known bestselling authors
+3. DO NOT recommend books already in the list above
+4. DO NOT recommend obscure or hard-to-find books
 5. For each recommendation, provide:
-   - title: The book's title
+   - title: The exact, correct book title
    - authors: Array of author names
-   - reason: A short, personal reason (max 10 words) like "Because you loved [Book Title]"
-   - blurb: A 2-3 sentence explanation of why this book matches their taste
+   - reason: A short, personal reason (max 10 words) referencing their rated books
+   - blurb: A 2-3 sentence explanation of why this popular book matches their taste
 
 RESPOND IN VALID JSON FORMAT ONLY (no markdown, no code blocks):
 {
@@ -86,7 +106,7 @@ RESPOND IN VALID JSON FORMAT ONLY (no markdown, no code blocks):
       "title": "Book Title",
       "authors": ["Author Name"],
       "reason": "Because you loved [book]",
-      "blurb": "This book explores similar themes to your favorites. The author's writing style and narrative approach will resonate with you."
+      "blurb": "This bestselling book explores similar themes. It's a fan favorite with millions of readers worldwide."
     }
   ]
 }
