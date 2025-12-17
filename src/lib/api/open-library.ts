@@ -78,7 +78,7 @@ export interface OpenLibraryEdition {
 export interface NormalizedBook {
 	id: string;
 	open_library_key: string;
-	google_books_id?: string;
+	google_books_id?: string;  // Legacy field, no longer used
 	isbn_13?: string;
 	isbn_10?: string;
 	title: string;
@@ -90,10 +90,15 @@ export interface NormalizedBook {
 	cover_url?: string;
 	categories: string[];
 	language?: string;
+	// Open Library engagement data
 	edition_count?: number;
 	ratings_average?: number;
 	ratings_count?: number;
+	want_to_read_count?: number;
+	currently_reading_count?: number;
+	already_read_count?: number;
 	popularity_score?: number;
+	first_publish_year?: number;
 }
 
 /**
@@ -359,10 +364,15 @@ export class OpenLibraryAPI {
 			cover_url: coverUrl,
 			categories,
 			language: doc.language?.[0] || 'en',
+			// Open Library engagement data
 			edition_count: doc.edition_count,
 			ratings_average: doc.ratings_average,
 			ratings_count: doc.ratings_count,
-			popularity_score: popularityScore
+			want_to_read_count: doc.want_to_read_count,
+			currently_reading_count: doc.currently_reading_count,
+			already_read_count: doc.already_read_count,
+			popularity_score: popularityScore,
+			first_publish_year: doc.first_publish_year
 		};
 	}
 

@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { openLibraryAPI } from './open-library';
 import type { Book } from '$lib/types/api';
-import { enhanceBookMetadata, validateEnhancedMetadata } from '$lib/ai/book-enhancer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/types/database';
 
@@ -14,51 +13,6 @@ function isStale(lastUpdated: string): boolean {
 	const lastUpdateDate = new Date(lastUpdated);
 	const expiryDate = new Date(lastUpdateDate.getTime() + CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 	return new Date() > expiryDate;
-}
-
-/**
- * Enhance book metadata with AI
- * Returns enhanced data or null if enhancement fails
- */
-async function enhanceBookIfNeeded(book: Book): Promise<Partial<Book> | null> {
-	try {
-		console.log('[book-cache] Enhancing new book with AI:', book.title);
-
-		const enhanced = await enhanceBookMetadata({
-			title: book.title,
-			authors: book.authors,
-			description: book.description,
-			categories: book.categories || [],
-			published_date: book.published_date,
-			publisher: book.publisher,
-			isbn_13: book.isbn_13,
-			isbn_10: book.isbn_10
-		});
-
-		// Validate the enhanced metadata
-		if (!validateEnhancedMetadata(enhanced)) {
-			console.error('[book-cache] Enhanced metadata failed validation');
-			return null;
-		}
-
-		console.log('[book-cache] AI enhancement successful:', {
-			categories: enhanced.categories,
-			descriptionWords: enhanced.description.split(/\s+/).length,
-			publishedDate: enhanced.published_date
-		});
-
-		return {
-			categories: enhanced.categories,
-			description: enhanced.description,
-			published_date: enhanced.published_date,
-			publisher: enhanced.publisher || book.publisher,
-			ai_enhanced: true,
-			ai_enhanced_at: new Date().toISOString()
-		};
-	} catch (error) {
-		console.error('[book-cache] Error enhancing book with AI:', error);
-		return null;
-	}
 }
 
 /**
@@ -123,19 +77,21 @@ export async function getOrFetchBook(
 			existingBook = data;
 		}
 
-		// Check if this is a new book
-		const isNewBook = !existingBook;
-
-		// Remove fields that don't exist in the database schema
-		const { id: _, averageRating, ratingsCount, popularity_score, edition_count, matchScore, ...bookData } = book;
+		// Remove temporary/computed fields that don't belong in the database
+		const {
+			id: _,
+			averageRating,
+			ratingsCount,
+			matchScore,
+			...bookData
+		} = book;
 
 		// Set the Open Library key
 		bookData.open_library_key = bookId;
 
-		// If this is a new book, enhance it with AI
-		let enhancedData: Partial<Book> | null = null;
-		if (isNewBook) {
-			enhancedData = await enhanceBookIfNeeded(book);
+		// Extract first_publish_year from published_date if it's a year string
+		if (bookData.published_date && /^\d{4}$/.test(bookData.published_date)) {
+			bookData.first_publish_year = parseInt(bookData.published_date, 10);
 		}
 
 		// If book exists, update it; otherwise insert new
@@ -158,10 +114,9 @@ export async function getOrFetchBook(
 
 			return updatedBook || existingBook;
 		} else {
-			// Insert new book
+			// Insert new book (without automatic AI enhancement)
 			const insertData = {
 				...bookData,
-				...(enhancedData || {}),
 				last_updated: new Date().toISOString()
 			};
 
@@ -193,9 +148,6 @@ export async function getOrFetchBook(
 
 			if (insertedBook) {
 				console.log('[book-cache] Insert successful, returning book with UUID:', insertedBook.id);
-				if (enhancedData) {
-					console.log('[book-cache] Book was enhanced with AI during creation');
-				}
 				return insertedBook;
 			}
 

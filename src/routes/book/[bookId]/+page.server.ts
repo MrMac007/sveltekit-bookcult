@@ -2,7 +2,6 @@ import { createClient } from '$lib/supabase/server'
 import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as bookActions from '$lib/actions/books'
-import { enhanceBook } from '$lib/actions/enhance-book'
 import { getOrFetchBook } from '$lib/api/book-cache'
 import { isValidUUID } from '$lib/utils/validation'
 import type { Database } from '$lib/types/database'
@@ -110,19 +109,7 @@ export const load: PageServerLoad = async (event) => {
     .neq('user_id', user.id) // Exclude user's own rating
     .order('created_at', { ascending: false })
 
-  if (!typedBook.ai_enhanced) {
-    const result = await enhanceBook(event, dbBookId)
-    if (result.success) {
-      const { data: refreshed } = await supabase
-        .from('books')
-        .select('*')
-        .eq('id', dbBookId)
-        .single()
-      if (refreshed) {
-        typedBook = refreshed as Book
-      }
-    }
-  }
+  // AI enhancement is now opt-in only (user clicks button on book page)
 
   // Transform the data to match the expected type
   const groupRatings =

@@ -143,6 +143,15 @@ export interface Database {
           last_updated: string
           ai_enhanced: boolean
           ai_enhanced_at: string | null
+          // Open Library engagement fields
+          edition_count: number | null
+          ratings_average: number | null
+          ratings_count: number | null
+          want_to_read_count: number | null
+          currently_reading_count: number | null
+          already_read_count: number | null
+          popularity_score: number | null
+          first_publish_year: number | null
         }
         Insert: {
           id?: string
@@ -162,6 +171,15 @@ export interface Database {
           last_updated?: string
           ai_enhanced?: boolean
           ai_enhanced_at?: string | null
+          // Open Library engagement fields
+          edition_count?: number | null
+          ratings_average?: number | null
+          ratings_count?: number | null
+          want_to_read_count?: number | null
+          currently_reading_count?: number | null
+          already_read_count?: number | null
+          popularity_score?: number | null
+          first_publish_year?: number | null
         }
         Update: {
           id?: string
@@ -181,6 +199,15 @@ export interface Database {
           last_updated?: string
           ai_enhanced?: boolean
           ai_enhanced_at?: string | null
+          // Open Library engagement fields
+          edition_count?: number | null
+          ratings_average?: number | null
+          ratings_count?: number | null
+          want_to_read_count?: number | null
+          currently_reading_count?: number | null
+          already_read_count?: number | null
+          popularity_score?: number | null
+          first_publish_year?: number | null
         }
       }
       wishlists: {

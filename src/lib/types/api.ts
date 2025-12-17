@@ -32,7 +32,7 @@ export interface GoogleBooksResponse {
 // Normalized book type for our database
 export interface Book {
   id?: string
-  google_books_id?: string
+  google_books_id?: string  // Legacy field, no longer used for new books
   open_library_key?: string
   isbn_13?: string
   isbn_10?: string
@@ -48,6 +48,15 @@ export interface Book {
   last_updated?: string
   ai_enhanced?: boolean
   ai_enhanced_at?: string
+  // Open Library engagement fields
+  edition_count?: number
+  ratings_average?: number
+  ratings_count?: number
+  want_to_read_count?: number
+  currently_reading_count?: number
+  already_read_count?: number
+  popularity_score?: number
+  first_publish_year?: number
 }
 
 // Book card data type for UI components
