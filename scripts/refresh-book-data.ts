@@ -128,10 +128,11 @@ async function searchByTitleAuthor(title: string, author?: string): Promise<Open
 
 /**
  * Get cover URL from Open Library cover ID
+ * Using ?default=false to get 404 instead of transparent pixel for missing covers
  */
 function getCoverUrl(coverId: number | undefined): string | undefined {
 	if (!coverId) return undefined;
-	return `${COVERS_API}/b/id/${coverId}-M.jpg`;
+	return `${COVERS_API}/b/id/${coverId}-M.jpg?default=false`;
 }
 
 /**

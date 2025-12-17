@@ -108,29 +108,33 @@ function getTextValue(field: string | { type: string; value: string } | undefine
 
 /**
  * Get cover URL from Open Library cover ID
+ * Adding ?default=false makes Open Library return 404 for missing covers
+ * instead of a 1x1 transparent pixel (which doesn't trigger onerror)
  */
 function getCoverUrl(coverId: number | undefined, size: 'S' | 'M' | 'L' = 'M'): string | undefined {
 	if (!coverId) return undefined;
-	return `${COVERS_API_URL}/b/id/${coverId}-${size}.jpg`;
+	return `${COVERS_API_URL}/b/id/${coverId}-${size}.jpg?default=false`;
 }
 
 /**
- * Get fallback cover URL using ISBN or OLID when cover_i is not available
+ * Get fallback cover URL using cover_edition_key or ISBN when cover_i is not available
+ * Note: OLID covers only work with Edition IDs (OL...M), not Work keys (OL...W)
  */
 function getFallbackCoverUrl(
+	coverEditionKey?: string,
 	isbn13?: string,
 	isbn10?: string,
-	olKey?: string,
 	size: 'S' | 'M' | 'L' = 'M'
 ): string | undefined {
+	// cover_edition_key is an edition OLID that has a cover - most reliable fallback
+	if (coverEditionKey) {
+		return `${COVERS_API_URL}/b/olid/${coverEditionKey}-${size}.jpg?default=false`;
+	}
 	if (isbn13) {
-		return `${COVERS_API_URL}/b/isbn/${isbn13}-${size}.jpg`;
+		return `${COVERS_API_URL}/b/isbn/${isbn13}-${size}.jpg?default=false`;
 	}
 	if (isbn10) {
-		return `${COVERS_API_URL}/b/isbn/${isbn10}-${size}.jpg`;
-	}
-	if (olKey) {
-		return `${COVERS_API_URL}/b/olid/${olKey}-${size}.jpg`;
+		return `${COVERS_API_URL}/b/isbn/${isbn10}-${size}.jpg?default=false`;
 	}
 	return undefined;
 }
@@ -339,8 +343,8 @@ export class OpenLibraryAPI {
 
 		const workKey = extractKeyId(doc.key);
 
-		// Get cover URL with fallback to ISBN or OLID-based cover
-		const coverUrl = getCoverUrl(doc.cover_i, 'M') || getFallbackCoverUrl(isbn13, isbn10, workKey, 'M');
+		// Get cover URL with fallback to cover_edition_key or ISBN-based cover
+		const coverUrl = getCoverUrl(doc.cover_i, 'M') || getFallbackCoverUrl(doc.cover_edition_key, isbn13, isbn10, 'M');
 
 		return {
 			id: workKey, // Use work key as temporary ID until saved to DB
@@ -454,9 +458,10 @@ export class OpenLibraryAPI {
 			const isbn13 = edition?.isbn_13?.[0];
 			const isbn10 = edition?.isbn_10?.[0];
 
-			// Get cover URL with fallback to ISBN or OLID-based cover
+			// Get cover URL with fallback to ISBN-based cover
+			// Note: getBookDetails doesn't have cover_edition_key, so we pass undefined
 			const coverUrl = getCoverUrl(work.covers?.[0] || edition?.covers?.[0], 'M')
-				|| getFallbackCoverUrl(isbn13, isbn10, key, 'M');
+				|| getFallbackCoverUrl(undefined, isbn13, isbn10, 'M');
 
 			return {
 				id: key,

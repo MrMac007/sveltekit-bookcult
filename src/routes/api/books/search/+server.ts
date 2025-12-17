@@ -96,18 +96,16 @@ export const GET: RequestHandler = async (event) => {
 
 /**
  * Generate a fallback cover URL from Open Library
+ * Using ?default=false to get 404 instead of 1x1 transparent pixel for missing covers
+ * Note: OLID covers only work with Edition IDs (OL...M), not Work keys (OL...W)
  */
 function getFallbackCoverUrl(book: any): string | null {
 	// Try ISBN first (most reliable for covers)
 	if (book.isbn_13) {
-		return `https://covers.openlibrary.org/b/isbn/${book.isbn_13}-M.jpg`;
+		return `https://covers.openlibrary.org/b/isbn/${book.isbn_13}-M.jpg?default=false`;
 	}
 	if (book.isbn_10) {
-		return `https://covers.openlibrary.org/b/isbn/${book.isbn_10}-M.jpg`;
-	}
-	// Fall back to Open Library ID
-	if (book.open_library_key) {
-		return `https://covers.openlibrary.org/b/olid/${book.open_library_key}-M.jpg`;
+		return `https://covers.openlibrary.org/b/isbn/${book.isbn_10}-M.jpg?default=false`;
 	}
 	return null;
 }
