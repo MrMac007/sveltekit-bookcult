@@ -3,6 +3,8 @@ export interface Recommendation {
   title: string
   authors: string[]
   cover_url?: string
+  isbn_13?: string
+  isbn_10?: string
   reason: string
   blurb: string
 }

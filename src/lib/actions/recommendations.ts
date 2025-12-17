@@ -16,6 +16,40 @@ interface RecommendationsCache {
 const CACHE_DURATION_DAYS = 5
 const MIN_AUTO_REFRESH_DAYS = 7
 const WISHLIST_ADDS_THRESHOLD = 3
+const COVERS_API_URL = 'https://covers.openlibrary.org'
+
+/**
+ * Generate a reliable cover URL from ISBN data
+ * This ensures we always use fresh, working URLs instead of potentially broken cached ones
+ */
+function getReliableCoverUrl(rec: Recommendation): string | undefined {
+  // Generate fresh URL from ISBN (most reliable)
+  if (rec.isbn_13) {
+    return `${COVERS_API_URL}/b/isbn/${rec.isbn_13}-M.jpg?default=false`
+  }
+  if (rec.isbn_10) {
+    return `${COVERS_API_URL}/b/isbn/${rec.isbn_10}-M.jpg?default=false`
+  }
+
+  // Only use stored URL if it's already in the correct format
+  if (rec.cover_url &&
+      rec.cover_url.includes('covers.openlibrary.org') &&
+      rec.cover_url.includes('?default=false')) {
+    return rec.cover_url
+  }
+
+  return undefined
+}
+
+/**
+ * Process cached recommendations to ensure cover URLs are reliable
+ */
+function processCachedRecommendations(recommendations: Recommendation[]): Recommendation[] {
+  return recommendations.map(rec => ({
+    ...rec,
+    cover_url: getReliableCoverUrl(rec)
+  }))
+}
 
 export async function getRecommendations(
   event: RequestEvent,
@@ -146,7 +180,9 @@ async function getValidCache(
     }
   }
 
-  return (cache as RecommendationsCache).recommendations
+  // Process cached recommendations to ensure cover URLs are reliable
+  const recommendations = (cache as RecommendationsCache).recommendations
+  return processCachedRecommendations(recommendations)
 }
 
 async function generateNewRecommendations(
@@ -268,6 +304,8 @@ async function generateNewRecommendations(
         title: book.title,
         authors: book.authors,
         cover_url: book.cover_url,
+        isbn_13: book.isbn_13,
+        isbn_10: book.isbn_10,
         reason: rec.reason,
         blurb: rec.blurb,
       })

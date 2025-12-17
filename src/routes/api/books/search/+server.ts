@@ -111,6 +111,28 @@ function getFallbackCoverUrl(book: any): string | null {
 }
 
 /**
+ * Generate a reliable cover URL, preferring fresh ISBN-based URLs over stored ones
+ * This avoids issues with old/broken URLs stored in the database
+ */
+function getReliableCoverUrl(book: any): string | undefined {
+	// Always prefer generating a fresh URL from ISBN (most reliable)
+	const freshUrl = getFallbackCoverUrl(book);
+	if (freshUrl) {
+		return freshUrl;
+	}
+
+	// If no ISBN available, check if stored URL uses covers.openlibrary.org with ?default=false
+	if (book.cover_url &&
+		book.cover_url.includes('covers.openlibrary.org') &&
+		book.cover_url.includes('?default=false')) {
+		return book.cover_url;
+	}
+
+	// Don't use old/broken URLs that might redirect to archive.org
+	return undefined;
+}
+
+/**
  * Format database results to match UnifiedBook format
  */
 function formatDatabaseResults(books: any[]): UnifiedBook[] {
@@ -126,7 +148,7 @@ function formatDatabaseResults(books: any[]): UnifiedBook[] {
 		published_date: book.published_date,
 		description: book.description,
 		page_count: book.page_count,
-		cover_url: book.cover_url || getFallbackCoverUrl(book),
+		cover_url: getReliableCoverUrl(book),
 		categories: book.categories || [],
 		language: book.language,
 		source: 'database' as const // Mark as from database for debugging
