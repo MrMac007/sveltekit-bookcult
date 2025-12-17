@@ -252,6 +252,70 @@ export class OpenLibraryAPI {
 	}
 
 	/**
+	 * Get all editions of a work with covers for user selection
+	 * Returns editions sorted by relevance (English, has cover, has ISBN)
+	 */
+	async getEditionsWithCovers(workKey: string): Promise<Array<{
+		key: string;
+		title: string;
+		cover_url?: string;
+		cover_id?: number;
+		publisher?: string;
+		publish_date?: string;
+		isbn_13?: string;
+		isbn_10?: string;
+		language?: string;
+	}>> {
+		const key = extractKeyId(workKey);
+		const url = `${OPEN_LIBRARY_API_URL}/works/${key}/editions.json?limit=30`;
+
+		const response = await fetch(url, {
+			headers: {
+				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
+			}
+		});
+
+		if (!response.ok) {
+			return [];
+		}
+
+		const data = await response.json();
+		const editions: OpenLibraryEdition[] = data.entries || [];
+
+		// Filter and transform editions
+		const editionsWithCovers = editions
+			.filter(e => e.covers && e.covers.length > 0 && e.covers[0] > 0)
+			.map(edition => {
+				const coverId = edition.covers?.[0];
+				const isEnglish = edition.languages?.some(l => l.key === '/languages/eng') ?? true;
+
+				return {
+					key: extractKeyId(edition.key),
+					title: edition.title,
+					cover_url: coverId ? `${COVERS_API_URL}/b/id/${coverId}-M.jpg?default=false` : undefined,
+					cover_id: coverId,
+					publisher: edition.publishers?.[0],
+					publish_date: edition.publish_date,
+					isbn_13: edition.isbn_13?.[0],
+					isbn_10: edition.isbn_10?.[0],
+					language: edition.languages?.[0]?.key?.replace('/languages/', ''),
+					_isEnglish: isEnglish,
+					_hasIsbn: !!(edition.isbn_13?.length || edition.isbn_10?.length)
+				};
+			})
+			// Sort: English first, then by has ISBN, then by publish date (newest first)
+			.sort((a: any, b: any) => {
+				if (a._isEnglish !== b._isEnglish) return a._isEnglish ? -1 : 1;
+				if (a._hasIsbn !== b._hasIsbn) return a._hasIsbn ? -1 : 1;
+				return 0;
+			})
+			// Remove internal sorting fields
+			.map(({ _isEnglish, _hasIsbn, ...edition }: any) => edition);
+
+		return editionsWithCovers;
+	}
+
+	/**
 	 * Get the best edition of a work (most complete data)
 	 */
 	async getBestEdition(workKey: string): Promise<OpenLibraryEdition | null> {

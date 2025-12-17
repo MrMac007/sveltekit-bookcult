@@ -168,6 +168,96 @@ export async function getOrFetchBook(
 }
 
 /**
+ * Get book from cache or Open Library API with a user-selected cover
+ * Used when the first user adding a book chooses their preferred edition cover
+ */
+export async function getOrFetchBookWithCover(
+	bookId: string,
+	supabase: SupabaseClient<Database>,
+	coverUrl: string
+): Promise<Book | null> {
+	try {
+		// First check if book already exists in database
+		const { data: existingBook } = await supabase
+			.from('books')
+			.select('*')
+			.eq('open_library_key', bookId)
+			.single();
+
+		// If book exists, return it (don't override existing cover)
+		if (existingBook) {
+			return existingBook;
+		}
+
+		// Fetch from Open Library
+		const olBook = await openLibraryAPI.getBookDetails(bookId);
+		if (!olBook) {
+			console.error('[book-cache] Open Library book not found:', bookId);
+			return null;
+		}
+
+		// Remove temporary/computed fields
+		const {
+			id: _,
+			averageRating,
+			ratingsCount,
+			matchScore,
+			...bookData
+		} = olBook as any;
+
+		// Set the Open Library key and user-selected cover
+		bookData.open_library_key = bookId;
+		bookData.cover_url = coverUrl;
+
+		// Extract first_publish_year from published_date if it's a year string
+		if (bookData.published_date && /^\d{4}$/.test(bookData.published_date)) {
+			bookData.first_publish_year = parseInt(bookData.published_date, 10);
+		}
+
+		// Insert new book with user-selected cover
+		const insertData = {
+			...bookData,
+			last_updated: new Date().toISOString()
+		};
+
+		const { data: insertedBook, error: insertError } = await supabase
+			.from('books')
+			.insert(insertData)
+			.select()
+			.single();
+
+		if (insertError) {
+			console.error('[book-cache] Insert error:', insertError.message);
+
+			// If insert failed due to duplicate, fetch existing
+			if (insertError.code === '23505') {
+				const { data: existingByKey } = await supabase
+					.from('books')
+					.select('*')
+					.eq('open_library_key', bookId)
+					.single();
+
+				if (existingByKey) {
+					return existingByKey;
+				}
+			}
+
+			return null;
+		}
+
+		if (insertedBook) {
+			console.log('[book-cache] Insert successful with user-selected cover:', insertedBook.id);
+			return insertedBook;
+		}
+
+		return null;
+	} catch (error) {
+		console.error('Error fetching book with cover:', error);
+		return null;
+	}
+}
+
+/**
  * Search books with caching
  */
 export async function searchBooks(

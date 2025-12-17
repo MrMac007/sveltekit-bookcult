@@ -1,4 +1,4 @@
-import { getOrFetchBook } from '$lib/api/book-cache'
+import { getOrFetchBook, getOrFetchBookWithCover } from '$lib/api/book-cache'
 import { createClient } from '$lib/supabase/server'
 import { isValidUUID } from '$lib/utils/validation'
 import { json } from '@sveltejs/kit'
@@ -10,6 +10,7 @@ interface DbBookId {
 
 export const GET: RequestHandler = async (event) => {
   const bookId = event.url.searchParams.get('id')
+  const coverUrl = event.url.searchParams.get('cover_url')
 
   if (!bookId) {
     return json({ error: 'Book ID is required' }, { status: 400 })
@@ -18,7 +19,10 @@ export const GET: RequestHandler = async (event) => {
   const supabase = createClient(event)
 
   try {
-    const book = (await getOrFetchBook(bookId, supabase)) as any
+    // Use the cover-aware version if a cover URL is provided (from edition picker)
+    const book = coverUrl
+      ? (await getOrFetchBookWithCover(bookId, supabase, coverUrl)) as any
+      : (await getOrFetchBook(bookId, supabase)) as any
 
     if (!book) {
       return json({ error: 'Book not found' }, { status: 404 })
