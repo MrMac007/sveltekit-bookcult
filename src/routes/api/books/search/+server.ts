@@ -95,6 +95,24 @@ export const GET: RequestHandler = async (event) => {
 };
 
 /**
+ * Generate a fallback cover URL from Open Library
+ */
+function getFallbackCoverUrl(book: any): string | null {
+	// Try ISBN first (most reliable for covers)
+	if (book.isbn_13) {
+		return `https://covers.openlibrary.org/b/isbn/${book.isbn_13}-M.jpg`;
+	}
+	if (book.isbn_10) {
+		return `https://covers.openlibrary.org/b/isbn/${book.isbn_10}-M.jpg`;
+	}
+	// Fall back to Open Library ID
+	if (book.open_library_key) {
+		return `https://covers.openlibrary.org/b/olid/${book.open_library_key}-M.jpg`;
+	}
+	return null;
+}
+
+/**
  * Format database results to match UnifiedBook format
  */
 function formatDatabaseResults(books: any[]): UnifiedBook[] {
@@ -110,7 +128,7 @@ function formatDatabaseResults(books: any[]): UnifiedBook[] {
 		published_date: book.published_date,
 		description: book.description,
 		page_count: book.page_count,
-		cover_url: book.cover_url,
+		cover_url: book.cover_url || getFallbackCoverUrl(book),
 		categories: book.categories || [],
 		language: book.language,
 		source: 'database' as const // Mark as from database for debugging

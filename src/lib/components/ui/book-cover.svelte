@@ -19,6 +19,9 @@
 		class: className = ''
 	}: Props = $props();
 
+	// Track if image failed to load
+	let imageError = $state(false);
+
 	const sizeClasses = {
 		sm: 'h-20 w-14',
 		md: 'h-32 w-24',
@@ -33,26 +36,24 @@
 		xl: 'h-16 w-16'
 	};
 
-	const coverElement = () => {
-		return `
-			<div class="relative ${sizeClasses[size]} overflow-hidden rounded-lg bg-muted ${className}">
-				${
-					coverUrl
-						? `<img src="${coverUrl}" alt="Cover of ${title}" class="h-full w-full object-cover" />`
-						: `<div class="flex h-full w-full items-center justify-center">
-								<BookMarked class="${iconSizes[size]} text-muted-foreground" />
-							</div>`
-				}
-			</div>
-		`;
-	};
+	// Show image only if we have a URL and it hasn't errored
+	const showImage = $derived(coverUrl && !imageError);
+
+	function handleImageError() {
+		imageError = true;
+	}
 </script>
 
 {#if clickable && bookId}
 	<a href="/book/{bookId}" class="block transition-transform hover:scale-105">
 		<div class="relative {sizeClasses[size]} overflow-hidden rounded-lg bg-muted {className}">
-			{#if coverUrl}
-				<img src={coverUrl} alt="Cover of {title}" class="h-full w-full object-cover" />
+			{#if showImage}
+				<img
+					src={coverUrl}
+					alt="Cover of {title}"
+					class="h-full w-full object-cover"
+					onerror={handleImageError}
+				/>
 			{:else}
 				<div class="flex h-full w-full items-center justify-center">
 					<BookMarked class={iconSizes[size] + ' text-muted-foreground'} />
@@ -62,8 +63,13 @@
 	</a>
 {:else}
 	<div class="relative {sizeClasses[size]} overflow-hidden rounded-lg bg-muted {className}">
-		{#if coverUrl}
-			<img src={coverUrl} alt="Cover of {title}" class="h-full w-full object-cover" />
+		{#if showImage}
+			<img
+				src={coverUrl}
+				alt="Cover of {title}"
+				class="h-full w-full object-cover"
+				onerror={handleImageError}
+			/>
 		{:else}
 			<div class="flex h-full w-full items-center justify-center">
 				<BookMarked class={iconSizes[size] + ' text-muted-foreground'} />
