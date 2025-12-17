@@ -223,10 +223,20 @@ async function generateNewRecommendations(
     rating: r.rating,
   }))
 
-  const aiRecommendations = await generateBookRecommendations({
-    userId,
-    topRatedBooks,
-  })
+  console.log('[Recommendations] Calling AI with', topRatedBooks.length, 'rated books')
+
+  let aiRecommendations: BookRecommendation[]
+  try {
+    aiRecommendations = await generateBookRecommendations({
+      userId,
+      topRatedBooks,
+    })
+    console.log('[Recommendations] AI returned', aiRecommendations.length, 'recommendations')
+  } catch (aiError) {
+    console.error('[Recommendations] AI generation failed:', aiError)
+    // Re-throw with details so the error message shows in the UI
+    throw new Error(`AI generation failed: ${aiError instanceof Error ? aiError.message : 'Unknown error'}`)
+  }
 
   const enrichedRecommendations: Recommendation[] = []
 

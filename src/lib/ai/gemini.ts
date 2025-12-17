@@ -53,7 +53,11 @@ export async function generateBookRecommendations(
 		return recommendations;
 	} catch (error) {
 		console.error('[Gemini] Error generating recommendations:', error);
-		throw new Error('Failed to generate recommendations');
+		if (error instanceof Error) {
+			console.error('[Gemini] Error message:', error.message);
+			console.error('[Gemini] Error stack:', error.stack);
+		}
+		throw new Error(`Failed to generate recommendations: ${error instanceof Error ? error.message : 'Unknown error'}`);
 	}
 }
 
