@@ -170,7 +170,7 @@ async function generateNewRecommendations(
 
   const { data: ratings, error: ratingsError } = await supabase
     .from('ratings')
-    .select('rating, books(open_library_key, title, authors, categories)')
+    .select('rating, books(id, open_library_key, google_books_id, title, authors, categories)')
     .eq('user_id', userId)
     .gte('rating', 4.0)
     .order('rating', { ascending: false })
@@ -183,21 +183,43 @@ async function generateNewRecommendations(
     return []
   }
 
+  // Filter out ratings where book data is missing
+  const validRatings = ratings.filter((r: any) => r.books?.title && r.books?.authors)
+  if (validRatings.length < 3) {
+    console.error('[Recommendations] Not enough valid rated books with complete data')
+    return []
+  }
+
   const [{ data: wishlistBooks }, { data: completedBooks }] = await Promise.all([
-    supabase.from('wishlists').select('books(open_library_key)').eq('user_id', userId),
-    supabase.from('completed_books').select('books(open_library_key)').eq('user_id', userId),
+    supabase.from('wishlists').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
+    supabase.from('completed_books').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
   ])
 
-  const excludeIds = new Set<string>([
-    ...ratings.map((r: any) => r.books.open_library_key),
-    ...(wishlistBooks || []).map((w: any) => w.books.open_library_key),
-    ...(completedBooks || []).map((c: any) => c.books.open_library_key),
-  ])
+  // Collect all book identifiers to exclude (filter out null/undefined)
+  const excludeIds = new Set<string>()
+  for (const r of validRatings) {
+    const book = r.books as any
+    if (book?.id) excludeIds.add(book.id)
+    if (book?.open_library_key) excludeIds.add(book.open_library_key)
+    if (book?.google_books_id) excludeIds.add(book.google_books_id)
+  }
+  for (const w of wishlistBooks || []) {
+    const book = (w as any).books
+    if (book?.id) excludeIds.add(book.id)
+    if (book?.open_library_key) excludeIds.add(book.open_library_key)
+    if (book?.google_books_id) excludeIds.add(book.google_books_id)
+  }
+  for (const c of completedBooks || []) {
+    const book = (c as any).books
+    if (book?.id) excludeIds.add(book.id)
+    if (book?.open_library_key) excludeIds.add(book.open_library_key)
+    if (book?.google_books_id) excludeIds.add(book.google_books_id)
+  }
 
-  const topRatedBooks = ratings.map((r: any) => ({
+  const topRatedBooks = validRatings.map((r: any) => ({
     title: r.books.title,
-    authors: r.books.authors,
-    categories: r.books.categories,
+    authors: r.books.authors || [],
+    categories: r.books.categories || [],
     rating: r.rating,
   }))
 
@@ -221,7 +243,13 @@ async function generateNewRecommendations(
       const book =
         results.find((b) => b.title.toLowerCase() === rec.title.toLowerCase()) || results[0]
 
-      if (!book.open_library_key || excludeIds.has(book.open_library_key)) {
+      // Check if this book should be excluded (already rated/in wishlist/completed)
+      const isExcluded =
+        (book.id && excludeIds.has(book.id)) ||
+        (book.open_library_key && excludeIds.has(book.open_library_key)) ||
+        (book.google_books_id && excludeIds.has(book.google_books_id))
+
+      if (!book.open_library_key || isExcluded) {
         continue
       }
 

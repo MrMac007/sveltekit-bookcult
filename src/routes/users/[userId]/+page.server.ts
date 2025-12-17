@@ -254,7 +254,7 @@ export const load: PageServerLoad = async (event) => {
     currentlyReading: typedReading.filter((c) => c.books !== null),
     userQuotes: quotesWithBooks,
     favoriteBooks: favoriteBooksWithDetails,
-    wallStyle: (profile.wall_style || 'sticky-notes') as WallStyle,
+    wallStyle: ((profile as Profile).wall_style || 'sticky-notes') as WallStyle,
   }
 }
 

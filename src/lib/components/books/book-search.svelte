@@ -24,8 +24,18 @@
 	let hadDatabaseResults = $state(false);
 	let hasShownApiResults = $state(false);
 	let isLoadingMore = $state(false);
-	let userWishlist = $state<Set<string>>(new Set());
-	let userCompleted = $state<Set<string>>(new Set());
+	let userWishlistIds = $state<Set<string>>(new Set());
+	let userCompletedIds = $state<Set<string>>(new Set());
+
+	// Helper to check if a book is in a set by any of its identifiers
+	function isBookInSet(book: BookCardData, idSet: Set<string>): boolean {
+		return (
+			(book.id && idSet.has(book.id)) ||
+			(book.google_books_id && idSet.has(book.google_books_id)) ||
+			(book.open_library_key && idSet.has(book.open_library_key)) ||
+			false
+		);
+	}
 
 	onMount(() => {
 		if (userId) {
@@ -112,28 +122,38 @@
 
 	async function loadUserBookStatuses() {
 		try {
-			const [{ data: wishlistData }, { data: completedData }] = await Promise.all([
+			type BookIds = { id?: string; google_books_id?: string | null; open_library_key?: string | null };
+			type ItemWithBooks = { books: BookIds | null };
+
+			const [wishlistResult, completedResult] = await Promise.all([
 				supabase
 					.from('wishlists')
-					.select('books(google_books_id)')
+					.select('books(id, google_books_id, open_library_key)')
 					.eq('user_id', userId),
 				supabase
 					.from('completed_books')
-					.select('books(google_books_id)')
+					.select('books(id, google_books_id, open_library_key)')
 					.eq('user_id', userId),
 			]);
 
-			userWishlist = new Set(
-				(wishlistData || [])
-					.map((item: any) => item.books?.google_books_id)
-					.filter((id: string | null): id is string => Boolean(id))
-			);
+			// Collect all identifiers (UUID, google_books_id, open_library_key)
+			const wishlistIds = new Set<string>();
+			for (const item of (wishlistResult.data || []) as ItemWithBooks[]) {
+				const book = item.books;
+				if (book?.id) wishlistIds.add(book.id);
+				if (book?.google_books_id) wishlistIds.add(book.google_books_id);
+				if (book?.open_library_key) wishlistIds.add(book.open_library_key);
+			}
+			userWishlistIds = wishlistIds;
 
-			userCompleted = new Set(
-				(completedData || [])
-					.map((item: any) => item.books?.google_books_id)
-					.filter((id: string | null): id is string => Boolean(id))
-			);
+			const completedIds = new Set<string>();
+			for (const item of (completedResult.data || []) as ItemWithBooks[]) {
+				const book = item.books;
+				if (book?.id) completedIds.add(book.id);
+				if (book?.google_books_id) completedIds.add(book.google_books_id);
+				if (book?.open_library_key) completedIds.add(book.open_library_key);
+			}
+			userCompletedIds = completedIds;
 		} catch (error) {
 			console.error('Error loading book statuses:', error);
 		}
@@ -219,12 +239,24 @@
 				throw error;
 			}
 
-			if (book.google_books_id) {
-				userWishlist = new Set([...userWishlist, book.google_books_id]);
-				userCompleted = new Set(
-					[...userCompleted].filter((id) => id !== book.google_books_id)
-				);
-			}
+			// Update local state with all available identifiers
+			const newWishlistIds = new Set(userWishlistIds);
+			const newCompletedIds = new Set(userCompletedIds);
+
+			// Add all identifiers for this book
+			newWishlistIds.add(bookId);
+			if (book.id) newWishlistIds.add(book.id);
+			if (book.google_books_id) newWishlistIds.add(book.google_books_id);
+			if (book.open_library_key) newWishlistIds.add(book.open_library_key);
+
+			// Remove from completed if present
+			newCompletedIds.delete(bookId);
+			if (book.id) newCompletedIds.delete(book.id);
+			if (book.google_books_id) newCompletedIds.delete(book.google_books_id);
+			if (book.open_library_key) newCompletedIds.delete(book.open_library_key);
+
+			userWishlistIds = newWishlistIds;
+			userCompletedIds = newCompletedIds;
 		} catch (error) {
 			console.error('Error adding to wishlist:', error);
 			alert('Failed to add to wishlist. Please try again.');
@@ -268,12 +300,24 @@
 				throw insertError;
 			}
 
-			if (book.google_books_id) {
-				userCompleted = new Set([...userCompleted, book.google_books_id]);
-				userWishlist = new Set(
-					[...userWishlist].filter((id) => id !== book.google_books_id)
-				);
-			}
+			// Update local state with all available identifiers
+			const newCompletedIds = new Set(userCompletedIds);
+			const newWishlistIds = new Set(userWishlistIds);
+
+			// Add all identifiers for this book to completed
+			newCompletedIds.add(bookId);
+			if (book.id) newCompletedIds.add(book.id);
+			if (book.google_books_id) newCompletedIds.add(book.google_books_id);
+			if (book.open_library_key) newCompletedIds.add(book.open_library_key);
+
+			// Remove from wishlist if present
+			newWishlistIds.delete(bookId);
+			if (book.id) newWishlistIds.delete(book.id);
+			if (book.google_books_id) newWishlistIds.delete(book.google_books_id);
+			if (book.open_library_key) newWishlistIds.delete(book.open_library_key);
+
+			userCompletedIds = newCompletedIds;
+			userWishlistIds = newWishlistIds;
 
 			goto(`/rate/${bookId}`);
 		} catch (error) {
@@ -321,8 +365,8 @@
 					{book}
 					onAddToWishlist={handleAddToWishlist}
 					onMarkComplete={handleMarkComplete}
-					isInWishlist={book.google_books_id ? userWishlist.has(book.google_books_id) : false}
-					isCompleted={book.google_books_id ? userCompleted.has(book.google_books_id) : false}
+					isInWishlist={isBookInSet(book, userWishlistIds)}
+					isCompleted={isBookInSet(book, userCompletedIds)}
 					showSource={true}
 				/>
 			{/each}
