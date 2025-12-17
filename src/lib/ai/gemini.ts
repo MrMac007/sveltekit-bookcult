@@ -23,12 +23,13 @@ export interface RecommendationPromptData {
 }
 
 /**
- * Generate book recommendations using Google Gemini 2.5 Flash
+ * Generate book recommendations using Google Gemini 1.5 Flash (free tier)
  */
 export async function generateBookRecommendations(
 	data: RecommendationPromptData
 ): Promise<BookRecommendation[]> {
 	if (!GOOGLE_GENERATIVE_AI_API_KEY) {
+		console.error('[Gemini] API key not configured');
 		throw new Error('GOOGLE_GENERATIVE_AI_API_KEY is not configured');
 	}
 
@@ -39,16 +40,19 @@ export async function generateBookRecommendations(
 	const prompt = buildRecommendationPrompt(data);
 
 	try {
+		console.log('[Gemini] Generating recommendations for', data.topRatedBooks.length, 'books');
 		const result = await generateText({
-			model: google('gemini-2.0-flash'),
+			model: google('gemini-2.5-flash'),
 			prompt,
 			temperature: 0.5
 		});
 
+		console.log('[Gemini] Got response, parsing...');
 		const recommendations = parseRecommendationsResponse(result.text);
+		console.log('[Gemini] Parsed', recommendations.length, 'recommendations');
 		return recommendations;
 	} catch (error) {
-		console.error('Error generating recommendations with Gemini:', error);
+		console.error('[Gemini] Error generating recommendations:', error);
 		throw new Error('Failed to generate recommendations');
 	}
 }

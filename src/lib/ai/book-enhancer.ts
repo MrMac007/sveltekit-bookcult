@@ -26,18 +26,21 @@ export async function enhanceBookMetadata(
 	book: BookEnhancementInput
 ): Promise<EnhancedBookMetadata> {
 	if (!GOOGLE_GENERATIVE_AI_API_KEY) {
+		console.error('[AI-Enhancer] API key not configured');
 		throw new Error('GOOGLE_GENERATIVE_AI_API_KEY is not configured');
 	}
 
 	const prompt = buildEnhancementPrompt(book);
 
 	try {
+		console.log('[AI-Enhancer] Enhancing metadata for:', book.title);
 		const result = await generateText({
-			model: google('gemini-2.0-flash'),
+			model: google('gemini-2.5-flash'),
 			prompt,
 			temperature: 0.3
 		});
 
+		console.log('[AI-Enhancer] Got response, parsing...');
 		const enhanced = parseEnhancementResponse(result.text);
 		return enhanced;
 	} catch (error) {
