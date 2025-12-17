@@ -15,6 +15,11 @@
 	let touchStart = $state<number | null>(null);
 	let touchEnd = $state<number | null>(null);
 	let interval: ReturnType<typeof setInterval> | null = null;
+	let failedImages = $state<Set<string>>(new Set());
+
+	function handleImageError(openLibraryKey: string) {
+		failedImages = new Set([...failedImages, openLibraryKey]);
+	}
 
 	const currentBook = $derived(books[currentIndex]);
 	const isInWishlist = $derived(
@@ -93,12 +98,13 @@ $effect(() => {
 				href={`/book/${currentBook.open_library_key}`}
 				class="relative h-44 w-32 flex-shrink-0 overflow-hidden rounded-md bg-muted transition-opacity hover:opacity-80"
 			>
-					{#if currentBook.cover_url}
+					{#if currentBook.cover_url && !failedImages.has(currentBook.open_library_key)}
 						<img
 							src={currentBook.cover_url}
 							alt={`Cover of ${currentBook.title}`}
 							class="h-full w-full object-cover"
 							loading="lazy"
+							onerror={() => handleImageError(currentBook.open_library_key)}
 						/>
 					{:else}
 						<div class="flex h-full w-full items-center justify-center">

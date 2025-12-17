@@ -115,6 +115,27 @@ function getCoverUrl(coverId: number | undefined, size: 'S' | 'M' | 'L' = 'M'): 
 }
 
 /**
+ * Get fallback cover URL using ISBN or OLID when cover_i is not available
+ */
+function getFallbackCoverUrl(
+	isbn13?: string,
+	isbn10?: string,
+	olKey?: string,
+	size: 'S' | 'M' | 'L' = 'M'
+): string | undefined {
+	if (isbn13) {
+		return `${COVERS_API_URL}/b/isbn/${isbn13}-${size}.jpg`;
+	}
+	if (isbn10) {
+		return `${COVERS_API_URL}/b/isbn/${isbn10}-${size}.jpg`;
+	}
+	if (olKey) {
+		return `${COVERS_API_URL}/b/olid/${olKey}-${size}.jpg`;
+	}
+	return undefined;
+}
+
+/**
  * Extract Open Library key ID from full path
  * e.g., "/works/OL45804W" -> "OL45804W"
  */
@@ -318,6 +339,9 @@ export class OpenLibraryAPI {
 
 		const workKey = extractKeyId(doc.key);
 
+		// Get cover URL with fallback to ISBN or OLID-based cover
+		const coverUrl = getCoverUrl(doc.cover_i, 'M') || getFallbackCoverUrl(isbn13, isbn10, workKey, 'M');
+
 		return {
 			id: workKey, // Use work key as temporary ID until saved to DB
 			open_library_key: workKey,
@@ -328,7 +352,7 @@ export class OpenLibraryAPI {
 			publisher: doc.publisher?.[0],
 			published_date: publishedDate,
 			page_count: doc.number_of_pages_median,
-			cover_url: getCoverUrl(doc.cover_i, 'M'),
+			cover_url: coverUrl,
 			categories,
 			language: doc.language?.[0] || 'en',
 			edition_count: doc.edition_count,
@@ -427,19 +451,25 @@ export class OpenLibraryAPI {
 
 			const key = extractKeyId(workKey);
 			const description = getTextValue(work.description);
+			const isbn13 = edition?.isbn_13?.[0];
+			const isbn10 = edition?.isbn_10?.[0];
+
+			// Get cover URL with fallback to ISBN or OLID-based cover
+			const coverUrl = getCoverUrl(work.covers?.[0] || edition?.covers?.[0], 'M')
+				|| getFallbackCoverUrl(isbn13, isbn10, key, 'M');
 
 			return {
 				id: key,
 				open_library_key: key,
-				isbn_13: edition?.isbn_13?.[0],
-				isbn_10: edition?.isbn_10?.[0],
+				isbn_13: isbn13,
+				isbn_10: isbn10,
 				title: work.title,
 				authors: authorNames,
 				publisher: edition?.publishers?.[0],
 				published_date: work.first_publish_date || edition?.publish_date,
 				description,
 				page_count: edition?.number_of_pages,
-				cover_url: getCoverUrl(work.covers?.[0] || edition?.covers?.[0], 'M'),
+				cover_url: coverUrl,
 				categories: (work.subjects || []).slice(0, 5),
 				language: edition?.languages?.[0]?.key?.replace('/languages/', '') || 'en'
 			};

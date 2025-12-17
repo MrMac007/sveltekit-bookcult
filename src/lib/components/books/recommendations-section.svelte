@@ -22,6 +22,11 @@
 	let wishlistIds = $state<Set<string>>(new Set());
 	let currentIndex = $state(0);
 	let addingToWishlist = $state<string | null>(null);
+	let failedImages = $state<Set<string>>(new Set());
+
+	function handleImageError(openLibraryKey: string) {
+		failedImages = new Set([...failedImages, openLibraryKey]);
+	}
 
 	async function loadRecommendations(forceRefresh = false) {
 		try {
@@ -216,11 +221,12 @@
 											}`}
 											onclick={() => handleThumbnailClick(index)}
 										>
-											{#if rec.cover_url}
+											{#if rec.cover_url && !failedImages.has(rec.open_library_key)}
 												<img
 													src={rec.cover_url}
 													alt={`Cover of ${rec.title}`}
 													class="h-full w-full object-cover"
+													onerror={() => handleImageError(rec.open_library_key)}
 												/>
 											{:else}
 												<div class="flex h-full w-full items-center justify-center bg-muted">
