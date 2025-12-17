@@ -171,16 +171,21 @@
 	}
 
 	async function ensureBookId(book: BookCardData): Promise<string | null> {
+		// If already a valid UUID, return it
 		if (book.id && isValidUUID(book.id)) {
 			return book.id;
 		}
 
+		// Determine the Open Library key to use
+		const olKey = book.open_library_key || (book.id && /^OL\d+[WM]$/.test(book.id) ? book.id : null);
+
 		// Try Open Library key first
-		if (book.open_library_key) {
+		if (olKey) {
+			// Check if book already exists in database
 			const { data: existing } = await supabase
 				.from('books')
 				.select('id')
-				.eq('open_library_key', book.open_library_key)
+				.eq('open_library_key', olKey)
 				.single();
 
 			const typedExisting = existing as { id: string } | null;
@@ -188,10 +193,20 @@
 				return typedExisting.id;
 			}
 
-			const response = await fetch(`/api/books/fetch?id=${book.open_library_key}`);
-			if (response.ok) {
-				const payload = await response.json();
-				if (payload?.id) return payload.id;
+			// Fetch from API to create the book
+			try {
+				const response = await fetch(`/api/books/fetch?id=${olKey}`);
+				if (response.ok) {
+					const payload = await response.json();
+					if (payload?.id && isValidUUID(payload.id)) {
+						return payload.id;
+					}
+				} else {
+					const errorData = await response.json().catch(() => ({}));
+					console.error('[ensureBookId] API fetch failed:', response.status, errorData);
+				}
+			} catch (err) {
+				console.error('[ensureBookId] Fetch error:', err);
 			}
 		}
 
@@ -209,15 +224,7 @@
 			}
 		}
 
-		// Last resort: try the book.id as Open Library key (format: OL12345W)
-		if (book.id && /^OL\d+[WM]$/.test(book.id)) {
-			const response = await fetch(`/api/books/fetch?id=${book.id}`);
-			if (response.ok) {
-				const payload = await response.json();
-				if (payload?.id) return payload.id;
-			}
-		}
-
+		console.error('[ensureBookId] Could not get book ID for:', book.title, { olKey, googleId: book.google_books_id });
 		return null;
 	}
 

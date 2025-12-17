@@ -138,37 +138,68 @@ export async function getOrFetchBook(
 			enhancedData = await enhanceBookIfNeeded(book);
 		}
 
-		const { data: upsertedBook, error: upsertError } = await supabase
-			.from('books')
-			.upsert(
-				{
+		// If book exists, update it; otherwise insert new
+		if (existingBook) {
+			// Update existing book
+			const { data: updatedBook, error: updateError } = await supabase
+				.from('books')
+				.update({
 					...bookData,
-					...(enhancedData || {}),
 					last_updated: new Date().toISOString()
-				},
-				{
-					onConflict: 'open_library_key'
-				}
-			)
-			.select()
-			.single();
+				})
+				.eq('id', existingBook.id)
+				.select()
+				.single();
 
-		if (upsertError) {
-			console.error('[book-cache] Upsert error - code:', upsertError.code);
-			console.error('[book-cache] Upsert error - message:', upsertError.message);
-			console.error('[book-cache] Upsert error - details:', upsertError.details);
-			console.error('[book-cache] Upsert error - hint:', upsertError.hint);
-		}
-
-		if (upsertedBook) {
-			console.log('[book-cache] Upsert successful, returning book with UUID:', upsertedBook.id);
-			if (isNewBook && enhancedData) {
-				console.log('[book-cache] Book was enhanced with AI during creation');
+			if (updateError) {
+				console.error('[book-cache] Update error:', updateError.message);
+				return existingBook; // Return existing book on error
 			}
-			return upsertedBook;
+
+			return updatedBook || existingBook;
 		} else {
-			console.warn('[book-cache] Upsert returned null, falling back to normalized book');
-			return book;
+			// Insert new book
+			const insertData = {
+				...bookData,
+				...(enhancedData || {}),
+				last_updated: new Date().toISOString()
+			};
+
+			const { data: insertedBook, error: insertError } = await supabase
+				.from('books')
+				.insert(insertData)
+				.select()
+				.single();
+
+			if (insertError) {
+				console.error('[book-cache] Insert error - code:', insertError.code);
+				console.error('[book-cache] Insert error - message:', insertError.message);
+
+				// If insert failed due to duplicate, try to fetch the existing book
+				if (insertError.code === '23505') {
+					const { data: existingByKey } = await supabase
+						.from('books')
+						.select('*')
+						.eq('open_library_key', bookId)
+						.single();
+
+					if (existingByKey) {
+						return existingByKey;
+					}
+				}
+
+				return null;
+			}
+
+			if (insertedBook) {
+				console.log('[book-cache] Insert successful, returning book with UUID:', insertedBook.id);
+				if (enhancedData) {
+					console.log('[book-cache] Book was enhanced with AI during creation');
+				}
+				return insertedBook;
+			}
+
+			return null;
 		}
 	} catch (error) {
 		console.error('Error fetching book from API:', error);
