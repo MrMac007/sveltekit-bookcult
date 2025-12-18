@@ -280,23 +280,7 @@ export async function searchBooks(
 	// Otherwise, search Open Library
 	try {
 		const books = await openLibraryAPI.searchAndNormalize(query, maxResults);
-
-		// Cache the results (upsert to avoid duplicates)
-		if (books.length > 0) {
-			await supabase
-				.from('books')
-				.upsert(
-					books.map((book) => ({
-						...book,
-						last_updated: new Date().toISOString()
-					})),
-					{
-						onConflict: 'open_library_key',
-						ignoreDuplicates: false
-					}
-				);
-		}
-
+		// Return results without auto-caching - books are only saved when user explicitly adds them
 		return books;
 	} catch (error) {
 		console.error('Error searching books:', error);
