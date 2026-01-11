@@ -50,7 +50,7 @@ export async function searchBooks(query: string, limit: number = 20): Promise<Se
 
 	const params = new URLSearchParams({
 		q: query,
-		limit: String(limit * 2), // Fetch extra to account for filtering
+		limit: String(Math.max(limit * 3, 60)), // Fetch extra to capture more series books
 		fields: [
 			'key',
 			'title',
