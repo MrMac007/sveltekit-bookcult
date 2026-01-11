@@ -3,9 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
-	import { Search, Loader2, X } from 'lucide-svelte';
+	import { Search, Loader2 } from 'lucide-svelte';
 	import BookCard from './book-card.svelte';
-	import EditionPicker from './edition-picker.svelte';
 	import type { BookCardData } from '$lib/types/api';
 	import { createClient } from '$lib/supabase/client';
 	import { isValidUUID } from '$lib/utils/validation';
@@ -27,11 +26,7 @@
 	let isLoadingMore = $state(false);
 	let userWishlistIds = $state<Set<string>>(new Set());
 	let userCompletedIds = $state<Set<string>>(new Set());
-
-	// Edition picker state
-	let showEditionPicker = $state(false);
-	let editionPickerBook = $state<BookCardData | null>(null);
-	let pendingAction = $state<'wishlist' | 'complete' | null>(null);
+	let isAddingBook = $state<string | null>(null); // Track which book is being added
 
 	// Helper to check if a book is in a set by any of its identifiers
 	function isBookInSet(book: BookCardData, idSet: Set<string>): boolean {
@@ -177,17 +172,19 @@
 	}
 
 	/**
-	 * Check if book exists in database, returns { exists: true, id } or { exists: false, olKey }
+	 * Ensure book exists in database, creating it with auto-selected best edition if needed.
+	 * Returns the database UUID for the book.
 	 */
-	async function checkBookExists(book: BookCardData): Promise<{ exists: true; id: string } | { exists: false; olKey: string | null }> {
+	async function ensureBookId(book: BookCardData): Promise<string | null> {
 		// If already a valid UUID, it exists
 		if (book.id && isValidUUID(book.id)) {
-			return { exists: true, id: book.id };
+			return book.id;
 		}
 
 		// Determine the Open Library key
 		const olKey = book.open_library_key || (book.id && /^OL\d+[WM]$/.test(book.id) ? book.id : null);
 
+		// Check if book exists by Open Library key
 		if (olKey) {
 			const { data: existing } = await supabase
 				.from('books')
@@ -197,7 +194,7 @@
 
 			const typedExisting = existing as { id: string } | null;
 			if (typedExisting?.id) {
-				return { exists: true, id: typedExisting.id };
+				return typedExisting.id;
 			}
 		}
 
@@ -211,48 +208,26 @@
 
 			const typedExisting = existing as { id: string } | null;
 			if (typedExisting?.id) {
-				return { exists: true, id: typedExisting.id };
+				return typedExisting.id;
 			}
 		}
 
-		return { exists: false, olKey };
-	}
-
-	/**
-	 * Create book in database, optionally with a user-selected cover
-	 */
-	async function createBook(olKey: string, coverUrl?: string): Promise<string | null> {
-		try {
-			const url = coverUrl
-				? `/api/books/fetch?id=${olKey}&cover_url=${encodeURIComponent(coverUrl)}`
-				: `/api/books/fetch?id=${olKey}`;
-
-			const response = await fetch(url);
-			if (response.ok) {
-				const payload = await response.json();
-				if (payload?.id && isValidUUID(payload.id)) {
-					return payload.id;
+		// Book doesn't exist - create with auto-selected best UK edition
+		if (olKey) {
+			try {
+				const response = await fetch(`/api/books/fetch?id=${olKey}`);
+				if (response.ok) {
+					const payload = await response.json();
+					if (payload?.id && isValidUUID(payload.id)) {
+						return payload.id;
+					}
+				} else {
+					const errorData = await response.json().catch(() => ({}));
+					console.error('[ensureBookId] API fetch failed:', response.status, errorData);
 				}
-			} else {
-				const errorData = await response.json().catch(() => ({}));
-				console.error('[createBook] API fetch failed:', response.status, errorData);
+			} catch (err) {
+				console.error('[ensureBookId] Fetch error:', err);
 			}
-		} catch (err) {
-			console.error('[createBook] Fetch error:', err);
-		}
-		return null;
-	}
-
-	async function ensureBookId(book: BookCardData): Promise<string | null> {
-		const result = await checkBookExists(book);
-
-		if (result.exists) {
-			return result.id;
-		}
-
-		// Book doesn't exist - create with default cover
-		if (result.olKey) {
-			return await createBook(result.olKey);
 		}
 
 		console.error('[ensureBookId] Could not get book ID for:', book.title);
@@ -260,81 +235,25 @@
 	}
 
 	/**
-	 * Handle edition selection from the picker
+	 * Add book to wishlist
 	 */
-	async function handleEditionSelect(edition: { key: string; cover_url?: string }) {
-		if (!editionPickerBook || !pendingAction) return;
-
-		const book = editionPickerBook;
-		const olKey = book.open_library_key || book.id;
-
-		if (!olKey) {
-			alert('Unable to save book');
-			closeEditionPicker();
-			return;
-		}
-
-		// Create book with selected cover
-		const bookId = await createBook(olKey, edition.cover_url);
-
-		if (!bookId) {
-			alert('Unable to save book');
-			closeEditionPicker();
-			return;
-		}
-
-		// Now perform the pending action
+	async function handleAddToWishlist(book: BookCardData) {
 		const user = await getCurrentUser();
-		if (!user) {
-			closeEditionPicker();
-			return;
-		}
+		if (!user) return;
 
-		if (pendingAction === 'wishlist') {
-			await addToWishlistWithId(user.id, bookId, book);
-		} else if (pendingAction === 'complete') {
-			await markCompleteWithId(user.id, bookId, book);
-		}
+		const bookKey = book.open_library_key || book.id || '';
+		isAddingBook = bookKey;
 
-		closeEditionPicker();
-	}
-
-	function closeEditionPicker() {
-		showEditionPicker = false;
-		editionPickerBook = null;
-		pendingAction = null;
-	}
-
-	/**
-	 * Skip edition picker and use default cover
-	 */
-	async function handleSkipEditionPicker() {
-		if (!editionPickerBook || !pendingAction) {
-			closeEditionPicker();
-			return;
-		}
-
-		const book = editionPickerBook;
-		const action = pendingAction;
-
-		closeEditionPicker();
-
-		// Use the default flow
-		if (action === 'wishlist') {
-			await handleAddToWishlist(book);
-		} else if (action === 'complete') {
-			await handleMarkComplete(book);
-		}
-	}
-
-	/**
-	 * Add book to wishlist with known book ID
-	 */
-	async function addToWishlistWithId(userId: string, bookId: string, book: BookCardData) {
 		try {
+			const bookId = await ensureBookId(book);
+			if (!bookId) {
+				alert('Unable to save book. Please try again.');
+				return;
+			}
+
 			const { error } = await supabase
 				.from('wishlists')
-				.insert({ user_id: userId, book_id: bookId } as any);
+				.insert({ user_id: user.id, book_id: bookId } as any);
 
 			if (error && error.code !== '23505') {
 				throw error;
@@ -359,18 +278,33 @@
 		} catch (error) {
 			console.error('Error adding to wishlist:', error);
 			alert('Failed to add to wishlist. Please try again.');
+		} finally {
+			isAddingBook = null;
 		}
 	}
 
 	/**
-	 * Mark book as complete with known book ID
+	 * Mark book as complete
 	 */
-	async function markCompleteWithId(userId: string, bookId: string, book: BookCardData) {
+	async function handleMarkComplete(book: BookCardData) {
+		const user = await getCurrentUser();
+		if (!user) return;
+
+		const bookKey = book.open_library_key || book.id || '';
+		isAddingBook = bookKey;
+
 		try {
+			const bookId = await ensureBookId(book);
+			if (!bookId) {
+				alert('Unable to save book. Please try again.');
+				return;
+			}
+
+			// Check if already completed
 			const { data: existing } = await supabase
 				.from('completed_books')
 				.select('id')
-				.eq('user_id', userId)
+				.eq('user_id', user.id)
 				.eq('book_id', bookId)
 				.single();
 
@@ -379,12 +313,13 @@
 				return;
 			}
 
-			await supabase.from('wishlists').delete().eq('user_id', userId).eq('book_id', bookId);
-			await supabase.from('currently_reading').delete().eq('user_id', userId).eq('book_id', bookId);
+			// Remove from other lists
+			await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId);
+			await supabase.from('currently_reading').delete().eq('user_id', user.id).eq('book_id', bookId);
 
 			const { error: insertError } = await supabase
 				.from('completed_books')
-				.insert({ user_id: userId, book_id: bookId } as any);
+				.insert({ user_id: user.id, book_id: bookId } as any);
 
 			if (insertError) {
 				throw insertError;
@@ -411,46 +346,8 @@
 		} catch (error) {
 			console.error('Error marking as complete:', error);
 			alert('Failed to mark as complete. Please try again.');
-		}
-	}
-
-	async function handleAddToWishlist(book: BookCardData) {
-		const user = await getCurrentUser();
-		if (!user) return;
-
-		// Check if book exists in database
-		const result = await checkBookExists(book);
-
-		if (result.exists) {
-			// Book exists, add directly
-			await addToWishlistWithId(user.id, result.id, book);
-		} else if (result.olKey) {
-			// Book doesn't exist, show edition picker
-			editionPickerBook = book;
-			pendingAction = 'wishlist';
-			showEditionPicker = true;
-		} else {
-			alert('Unable to save book');
-		}
-	}
-
-	async function handleMarkComplete(book: BookCardData) {
-		const user = await getCurrentUser();
-		if (!user) return;
-
-		// Check if book exists in database
-		const result = await checkBookExists(book);
-
-		if (result.exists) {
-			// Book exists, mark complete directly
-			await markCompleteWithId(user.id, result.id, book);
-		} else if (result.olKey) {
-			// Book doesn't exist, show edition picker
-			editionPickerBook = book;
-			pendingAction = 'complete';
-			showEditionPicker = true;
-		} else {
-			alert('Unable to save book');
+		} finally {
+			isAddingBook = null;
 		}
 	}
 </script>
@@ -530,35 +427,3 @@
 		</div>
 	{/if}
 </div>
-
-<!-- Edition Picker Modal -->
-{#if showEditionPicker && editionPickerBook}
-	<div class="fixed inset-0 z-50 flex items-center justify-center">
-		<!-- Backdrop -->
-		<button
-			type="button"
-			class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-			onclick={closeEditionPicker}
-			aria-label="Close"
-		></button>
-
-		<!-- Modal -->
-		<div class="relative z-10 mx-4 w-full max-w-2xl rounded-lg border bg-background p-6 shadow-lg">
-			<button
-				type="button"
-				class="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-				onclick={closeEditionPicker}
-				aria-label="Close"
-			>
-				<X class="h-5 w-5" />
-			</button>
-
-			<EditionPicker
-				workKey={editionPickerBook.open_library_key || editionPickerBook.id || ''}
-				bookTitle={editionPickerBook.title}
-				onSelect={handleEditionSelect}
-				onSkip={handleSkipEditionPicker}
-			/>
-		</div>
-	</div>
-{/if}

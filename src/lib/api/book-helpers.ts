@@ -11,7 +11,7 @@ function isUUID(id: string): boolean {
 }
 
 /**
- * Check if an ID is an Open Library key
+ * Check if an ID is an Open Library key (work or edition)
  * Open Library keys look like: OL12345W (work) or OL12345M (edition)
  */
 function isOpenLibraryKey(id: string): boolean {
@@ -19,8 +19,31 @@ function isOpenLibraryKey(id: string): boolean {
 }
 
 /**
+ * Check if an ID is an Open Library work key (canonical book representation)
+ * Work keys end with 'W': OL12345W
+ */
+function isWorkKey(id: string): boolean {
+	return /^OL\d+W$/.test(id);
+}
+
+/**
+ * Check if an ID is an Open Library edition key (specific publication)
+ * Edition keys end with 'M': OL12345M
+ */
+function isEditionKey(id: string): boolean {
+	return /^OL\d+M$/.test(id);
+}
+
+/**
  * Finds or creates a book in the database.
- * Supports both Google Books IDs and Open Library keys.
+ * Prioritizes Open Library work keys for deduplication to ensure
+ * all users adding the same book reference the same database entry.
+ *
+ * Lookup priority:
+ * 1. Open Library work key (most reliable for "same book" concept)
+ * 2. ISBN-13
+ * 3. ISBN-10
+ * 4. Google Books ID (legacy)
  *
  * @param bookData - Book data (should have database ID from search)
  * @param supabase - Supabase client instance
@@ -37,7 +60,30 @@ export async function findOrCreateBook(
 		return bookData.id;
 	}
 
-	// Try to find existing book by ISBN first (most reliable deduplication)
+	// Determine the Open Library key
+	const olKey = bookData.open_library_key ||
+		(bookData.id && isOpenLibraryKey(bookData.id) ? bookData.id : null);
+
+	// Warn if an edition key is being used instead of a work key
+	if (olKey && isEditionKey(olKey)) {
+		console.warn('[book-helpers] Edition key used instead of work key:', olKey);
+		console.warn('[book-helpers] For proper deduplication, use work keys (OL...W) not edition keys (OL...M)');
+	}
+
+	// 1. First, try to find by Open Library key (most reliable for deduplication)
+	if (olKey) {
+		const { data } = await client
+			.from('books')
+			.select('id')
+			.eq('open_library_key', olKey)
+			.single();
+
+		if (data) {
+			return data.id;
+		}
+	}
+
+	// 2. Try to find by ISBN-13
 	if (bookData.isbn_13) {
 		const { data } = await client
 			.from('books')
@@ -50,6 +96,7 @@ export async function findOrCreateBook(
 		}
 	}
 
+	// 3. Try to find by ISBN-10
 	if (bookData.isbn_10) {
 		const { data } = await client
 			.from('books')
@@ -62,33 +109,7 @@ export async function findOrCreateBook(
 		}
 	}
 
-	// Try to find by Open Library key
-	if (bookData.open_library_key) {
-		const { data } = await client
-			.from('books')
-			.select('id')
-			.eq('open_library_key', bookData.open_library_key)
-			.single();
-
-		if (data) {
-			return data.id;
-		}
-	}
-
-	// Check if the ID itself is an Open Library key
-	if (bookData.id && isOpenLibraryKey(bookData.id)) {
-		const { data } = await client
-			.from('books')
-			.select('id')
-			.eq('open_library_key', bookData.id)
-			.single();
-
-		if (data) {
-			return data.id;
-		}
-	}
-
-	// Try to find by Google Books ID
+	// 4. Try to find by Google Books ID (legacy)
 	if (bookData.google_books_id) {
 		const { data } = await client
 			.from('books')
@@ -105,8 +126,6 @@ export async function findOrCreateBook(
 	console.log('[book-helpers] Creating new book:', bookData.title);
 
 	// Determine which external ID to use
-	const openLibraryKey = bookData.open_library_key ||
-		(bookData.id && isOpenLibraryKey(bookData.id) ? bookData.id : null);
 	const googleBooksId = bookData.google_books_id ||
 		(bookData.id && !isOpenLibraryKey(bookData.id) && !isUUID(bookData.id) ? bookData.id : null);
 
@@ -114,7 +133,7 @@ export async function findOrCreateBook(
 		.from('books')
 		.insert({
 			google_books_id: googleBooksId,
-			open_library_key: openLibraryKey,
+			open_library_key: olKey,
 			title: bookData.title,
 			authors: bookData.authors,
 			description: bookData.description,

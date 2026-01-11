@@ -11,6 +11,53 @@
 const OPEN_LIBRARY_API_URL = 'https://openlibrary.org';
 const COVERS_API_URL = 'https://covers.openlibrary.org';
 
+// UK publishers to prioritize for best edition selection
+const UK_PUBLISHERS = [
+	'scholastic children\'s books',
+	'scholastic uk',
+	'bloomsbury',
+	'bloomsbury publishing',
+	'bloomsbury children\'s books',
+	'puffin',
+	'puffin books',
+	'penguin uk',
+	'penguin books ltd',
+	'harpercollins uk',
+	'harpercollins children\'s books',
+	'macmillan children\'s books',
+	'faber & faber',
+	'faber and faber',
+	'orion',
+	'orion children\'s books',
+	'hodder',
+	'hodder & stoughton',
+	'hodder children\'s books',
+	'transworld',
+	'random house uk',
+	'random house children\'s books',
+	'vintage uk',
+	'walker books',
+	'usborne',
+	'hot key books',
+	'nosy crow'
+];
+
+// High-quality international publishers (fallback if no UK edition)
+const QUALITY_PUBLISHERS = [
+	'scholastic',
+	'penguin',
+	'penguin random house',
+	'harpercollins',
+	'random house',
+	'simon & schuster',
+	'simon and schuster',
+	'macmillan',
+	'knopf',
+	'doubleday',
+	'little, brown',
+	'hachette'
+];
+
 export interface OpenLibrarySearchDoc {
 	key: string; // e.g., "/works/OL45804W"
 	title: string;
@@ -150,6 +197,137 @@ function getFallbackCoverUrl(
  */
 function extractKeyId(key: string): string {
 	return key.split('/').pop() || key;
+}
+
+/**
+ * Calculate normalized popularity score using logarithmic scaling.
+ * This allows very popular books to score high without completely dominating.
+ *
+ * Scale: 0-1000 points
+ * - Score of ~100 raw → ~333 normalized
+ * - Score of ~10,000 raw → ~666 normalized
+ * - Score of ~1,000,000 raw → ~1000 normalized (capped)
+ */
+function calculateNormalizedPopularity(doc: OpenLibrarySearchDoc): number {
+	const rawScore =
+		(doc.edition_count || 0) * 10 +
+		(doc.already_read_count || 0) * 5 +
+		(doc.currently_reading_count || 0) * 3 +
+		(doc.want_to_read_count || 0) * 2 +
+		(doc.ratings_count || 0);
+
+	if (rawScore <= 0) return 0;
+
+	// Logarithmic scaling: log10(1) = 0, log10(100) = 2, log10(1,000,000) = 6
+	const logScore = Math.log10(rawScore + 1);
+	return Math.min(1000, logScore * 166);
+}
+
+/**
+ * Detect if a book belongs to a series that matches the search query.
+ * Open Library stores series info in subjects with patterns like:
+ * - "Hunger Games Series"
+ * - "Harry Potter"
+ * - "Serie: The Hunger Games"
+ */
+function detectSeriesFromSubjects(subjects: string[] | undefined, query: string): boolean {
+	if (!subjects || subjects.length === 0) return false;
+
+	const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+	const queryWords = normalizedQuery.split(/\s+/);
+
+	for (const subject of subjects) {
+		const normalizedSubject = subject.toLowerCase();
+
+		// Check for series-related keywords
+		const isSeriesSubject =
+			normalizedSubject.includes('series') ||
+			normalizedSubject.startsWith('serie:') ||
+			normalizedSubject.includes('trilogy') ||
+			normalizedSubject.includes('saga');
+
+		if (isSeriesSubject) {
+			// Check if query words appear in the subject
+			const matchesQuery = queryWords.every(word => normalizedSubject.includes(word));
+			if (matchesQuery) return true;
+		}
+
+		// Also check for exact series name matches (e.g., "Harry Potter" subject)
+		if (queryWords.length >= 2 && normalizedSubject === normalizedQuery) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Extract year from a date string like "2008", "March 2008", "2008-03-15"
+ */
+function extractYear(dateStr: string): number | null {
+	const match = dateStr.match(/\b(19|20)\d{2}\b/);
+	return match ? parseInt(match[0], 10) : null;
+}
+
+/**
+ * Score an edition for UK market preference.
+ * Returns 0 for unusable editions (no cover, non-English).
+ */
+function scoreEditionForUK(edition: OpenLibraryEdition): number {
+	let score = 0;
+
+	// Must have cover
+	if (!edition.covers || edition.covers.length === 0 || edition.covers[0] <= 0) {
+		return 0;
+	}
+	score += 100; // Base score for having a cover
+
+	// Must be English
+	const isEnglish = edition.languages?.some(l => l.key === '/languages/eng') ??
+		// If no language specified, assume English (most books on Open Library)
+		(!edition.languages || edition.languages.length === 0);
+	if (!isEnglish) {
+		return 0;
+	}
+	score += 50;
+
+	// Publisher scoring
+	const publisherLower = (edition.publishers?.[0] || '').toLowerCase();
+
+	// UK publishers get highest boost
+	if (UK_PUBLISHERS.some(p => publisherLower.includes(p))) {
+		score += 40;
+	}
+	// Quality international publishers get medium boost
+	else if (QUALITY_PUBLISHERS.some(p => publisherLower.includes(p))) {
+		score += 25;
+	}
+
+	// ISBN availability (indicates proper trade edition)
+	if (edition.isbn_13 && edition.isbn_13.length > 0) {
+		score += 15;
+	}
+	if (edition.isbn_10 && edition.isbn_10.length > 0) {
+		score += 5;
+	}
+
+	// Publication recency (newer editions often have better covers)
+	if (edition.publish_date) {
+		const year = extractYear(edition.publish_date);
+		if (year) {
+			const age = new Date().getFullYear() - year;
+			if (age <= 5) score += 20;
+			else if (age <= 10) score += 15;
+			else if (age <= 15) score += 10;
+		}
+	}
+
+	// Has page count (indicates complete, not abridged edition)
+	if (edition.number_of_pages && edition.number_of_pages > 50) {
+		score += 10;
+	}
+
+	return score;
 }
 
 export class OpenLibraryAPI {
@@ -365,6 +543,59 @@ export class OpenLibraryAPI {
 	}
 
 	/**
+	 * Get the best edition for UK market with quality cover.
+	 * Prioritizes UK publishers, English language, and recent editions with good covers.
+	 *
+	 * @returns The best edition with its cover URL, or null if none found
+	 */
+	async getBestEditionForUK(workKey: string): Promise<{
+		edition: OpenLibraryEdition;
+		coverUrl: string;
+	} | null> {
+		const key = extractKeyId(workKey);
+		const url = `${OPEN_LIBRARY_API_URL}/works/${key}/editions.json?limit=50`;
+
+		const response = await fetch(url, {
+			headers: {
+				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
+			}
+		});
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const data = await response.json();
+		const editions: OpenLibraryEdition[] = data.entries || [];
+
+		if (editions.length === 0) return null;
+
+		// Score all editions using UK market preferences
+		const scoredEditions = editions
+			.map((edition) => ({
+				edition,
+				score: scoreEditionForUK(edition)
+			}))
+			.filter((e) => e.score > 0) // Filter out unusable editions
+			.sort((a, b) => b.score - a.score);
+
+		if (scoredEditions.length > 0) {
+			const best = scoredEditions[0].edition;
+			const coverUrl = `${COVERS_API_URL}/b/id/${best.covers![0]}-M.jpg?default=false`;
+			return { edition: best, coverUrl };
+		}
+
+		// Fallback: return first edition with any cover
+		const withCover = editions.find((e) => e.covers?.[0] && e.covers[0] > 0);
+		if (withCover) {
+			const coverUrl = `${COVERS_API_URL}/b/id/${withCover.covers![0]}-M.jpg?default=false`;
+			return { edition: withCover, coverUrl };
+		}
+
+		return null;
+	}
+
+	/**
 	 * Search by ISBN
 	 */
 	async searchByISBN(isbn: string): Promise<OpenLibrarySearchResponse> {
@@ -441,7 +672,16 @@ export class OpenLibraryAPI {
 	}
 
 	/**
-	 * Search and normalize results with smart ranking
+	 * Search and normalize results with smart ranking.
+	 *
+	 * Scoring weights (rebalanced to prioritize popular books):
+	 * - Title exact match: 1000 (was 2000)
+	 * - Title starts with: 800 (was 1500)
+	 * - Title contains: 400 (was 500)
+	 * - Popularity: up to 1000 via logarithmic scale (was max 200)
+	 * - Series match: +300 for books in a matching series
+	 * - Author match: +200 exact, +100 partial
+	 * - Rating boost: up to 50
 	 */
 	async searchAndNormalize(
 		query: string,
@@ -454,47 +694,53 @@ export class OpenLibraryAPI {
 			return [];
 		}
 
-		const normalized = response.docs.map((doc) => this.normalizeSearchDoc(doc));
-
 		// Score results for relevance
 		const normalizedQuery = query.toLowerCase().trim();
 		const normalizedAuthor = author?.toLowerCase().trim() || '';
 
-		const scoredBooks = normalized.map((book) => {
+		const scoredBooks = response.docs.map((doc) => {
+			const book = this.normalizeSearchDoc(doc);
 			const titleLower = (book.title || '').toLowerCase();
 			let matchScore = 0;
 
-			// Title matching
+			// Title matching (reduced weights to let popularity shine)
 			if (titleLower === normalizedQuery) {
-				matchScore = 2000; // Exact match
+				matchScore = 1000; // Exact match
 			} else if (titleLower.startsWith(normalizedQuery)) {
-				matchScore = 1500;
+				matchScore = 800;
 			} else {
 				const titleWithoutArticle = titleLower.replace(/^(the|a|an)\s+/, '');
 				if (titleWithoutArticle.startsWith(normalizedQuery)) {
-					matchScore = 1400;
+					matchScore = 750;
 				} else if (titleLower.includes(normalizedQuery)) {
-					matchScore = 500;
+					matchScore = 400;
 				}
 			}
+
+			// Series detection boost - shows related books in a series
+			// e.g., searching "hunger games" will boost "Catching Fire" and "Mockingjay"
+			if (detectSeriesFromSubjects(doc.subject, query)) {
+				matchScore += 300;
+			}
+
+			// Popularity boost using logarithmic scaling (can now be up to 1000)
+			// This allows very popular books to rise above obscure exact matches
+			const popularityBoost = calculateNormalizedPopularity(doc);
+			matchScore += popularityBoost;
 
 			// Author matching boost
 			if (normalizedAuthor && book.authors.length > 0) {
 				const authorsLower = book.authors.map((a) => a.toLowerCase());
 				if (authorsLower.some((a) => a === normalizedAuthor)) {
-					matchScore += 500;
+					matchScore += 200;
 				} else if (authorsLower.some((a) => a.includes(normalizedAuthor))) {
-					matchScore += 300;
+					matchScore += 100;
 				}
 			}
 
-			// Popularity boost (scaled down to not overwhelm relevance)
-			const popularityBoost = Math.min((book.popularity_score || 0) / 100, 200);
-			matchScore += popularityBoost;
-
-			// Rating boost
+			// Rating boost (moderate - rewards well-rated books)
 			if (book.ratings_count && book.ratings_count > 10) {
-				matchScore += (book.ratings_average || 0) * 10;
+				matchScore += Math.min((book.ratings_average || 0) * 10, 50);
 			}
 
 			return { ...book, matchScore };
@@ -508,14 +754,18 @@ export class OpenLibraryAPI {
 	}
 
 	/**
-	 * Get detailed book info by work key, enriching with edition data
+	 * Get detailed book info by work key, enriching with UK-preferred edition data
 	 */
 	async getBookDetails(workKey: string): Promise<NormalizedBook | null> {
 		try {
-			const [work, edition] = await Promise.all([
+			// Use UK edition selection for best cover and metadata
+			const [work, ukEditionResult] = await Promise.all([
 				this.getWork(workKey),
-				this.getBestEdition(workKey)
+				this.getBestEditionForUK(workKey)
 			]);
+
+			const edition = ukEditionResult?.edition || null;
+			const coverUrlFromEdition = ukEditionResult?.coverUrl;
 
 			// Get author names
 			const authorNames: string[] = [];
@@ -532,9 +782,9 @@ export class OpenLibraryAPI {
 			const isbn13 = edition?.isbn_13?.[0];
 			const isbn10 = edition?.isbn_10?.[0];
 
-			// Get cover URL with fallback to ISBN-based cover
-			// Note: getBookDetails doesn't have cover_edition_key, so we pass undefined
-			const coverUrl = getCoverUrl(work.covers?.[0] || edition?.covers?.[0], 'M')
+			// Prefer UK edition cover, fall back to work cover, then ISBN-based
+			const coverUrl = coverUrlFromEdition
+				|| getCoverUrl(work.covers?.[0], 'M')
 				|| getFallbackCoverUrl(undefined, isbn13, isbn10, 'M');
 
 			return {
