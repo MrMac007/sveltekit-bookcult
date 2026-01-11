@@ -139,41 +139,56 @@ function getCoverUrl(doc: OpenLibrarySearchDoc): string | null {
 
 /**
  * Calculate relevance score for sorting results
- * Simple scoring based on title match + Open Library popularity metrics
+ * Title match is weighted heavily - popularity only matters for tie-breaking
  */
 function calculateScore(doc: OpenLibrarySearchDoc, query: string): number {
-	let score = 0;
 	const queryLower = query.toLowerCase().trim();
 	const titleLower = doc.title.toLowerCase();
 
-	// Title match (0-40 points)
+	// Determine title match level
+	let titleMatchLevel: 'exact' | 'starts' | 'contains' | 'none';
 	if (titleLower === queryLower) {
-		score += 40; // Exact match
+		titleMatchLevel = 'exact';
 	} else if (titleLower.startsWith(queryLower)) {
-		score += 30; // Starts with query
+		titleMatchLevel = 'starts';
 	} else if (titleLower.includes(queryLower)) {
-		score += 20; // Contains query
+		titleMatchLevel = 'contains';
+	} else {
+		titleMatchLevel = 'none';
 	}
 
-	// Popularity from read count (0-40 points)
+	// Calculate popularity score (0-30 points)
+	let popularityScore = 0;
 	const readCount = doc.already_read_count || 0;
-	if (readCount > 10000) score += 40;
-	else if (readCount > 1000) score += 30;
-	else if (readCount > 100) score += 20;
-	else if (readCount > 10) score += 10;
+	if (readCount > 10000) popularityScore = 30;
+	else if (readCount > 1000) popularityScore = 25;
+	else if (readCount > 100) popularityScore = 15;
+	else if (readCount > 10) popularityScore = 8;
 
-	// Rating quality (0-10 points)
+	// Add rating bonus (0-10 points)
 	if (doc.ratings_count && doc.ratings_count > 50) {
 		const avgRating = doc.ratings_average || 0;
-		score += Math.min(10, Math.round(avgRating * 2));
+		popularityScore += Math.min(10, Math.round(avgRating * 2));
 	}
 
-	// Edition count as popularity signal (0-10 points)
+	// Add edition count bonus (0-5 points)
 	const editions = doc.edition_count || 0;
-	if (editions > 100) score += 10;
-	else if (editions > 50) score += 7;
-	else if (editions > 20) score += 5;
-	else if (editions > 5) score += 3;
+	if (editions > 100) popularityScore += 5;
+	else if (editions > 50) popularityScore += 3;
+	else if (editions > 20) popularityScore += 2;
 
-	return score;
+	// Final score based on title match level
+	// Title match is the primary factor, popularity is secondary
+	switch (titleMatchLevel) {
+		case 'exact':
+			return 200 + popularityScore; // 200-245 range
+		case 'starts':
+			return 150 + popularityScore; // 150-195 range
+		case 'contains':
+			return 100 + popularityScore; // 100-145 range
+		case 'none':
+			// If title doesn't match at all, heavily penalize
+			// Only get a fraction of popularity score
+			return Math.floor(popularityScore * 0.3); // 0-13 range
+	}
 }
