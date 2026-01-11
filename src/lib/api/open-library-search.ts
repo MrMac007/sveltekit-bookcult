@@ -14,6 +14,9 @@ export interface SearchResult {
 	editionCount?: number;
 	ratingsAverage?: number;
 	readCount?: number;
+	// Optional fields for database results
+	id?: string; // Database UUID (only for books already in DB)
+	source?: 'database' | 'openlib';
 }
 
 interface OpenLibrarySearchDoc {

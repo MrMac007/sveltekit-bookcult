@@ -8,11 +8,12 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { BookMarked, Plus, Trash2, BookOpen, ArrowLeft, Star } from 'lucide-svelte';
 	import type { PageData } from './$types';
+	import type { SearchResult } from '$lib/api/open-library-search';
 
 	let { data }: { data: PageData } = $props();
 
 	let searchQuery = $state('');
-	let searchResults = $state<any[]>([]);
+	let searchResults = $state<SearchResult[]>([]);
 	let isSearching = $state(false);
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -31,8 +32,7 @@
 			}
 
 			const result = await response.json();
-			// The API returns the array directly, not wrapped in an object
-			searchResults = Array.isArray(result) ? result : [];
+			searchResults = result.results || [];
 		} catch (error) {
 			console.error('Error searching books:', error);
 			searchResults = [];
@@ -58,8 +58,22 @@
 		}, 500);
 	}
 
-	function isBookInList(googleBooksId: string): boolean {
-		return data.books.some((book) => book.google_books_id === googleBooksId);
+	function isBookInList(workKey: string): boolean {
+		return data.books.some((book) => (book as any).open_library_key === workKey);
+	}
+
+	/**
+	 * Convert SearchResult to format expected by findOrCreateBook
+	 */
+	function toBookData(result: SearchResult) {
+		return {
+			id: result.workKey,
+			open_library_key: result.workKey,
+			title: result.title,
+			authors: result.authors,
+			cover_url: result.coverUrl,
+			published_date: result.firstPublishYear?.toString()
+		};
 	}
 </script>
 
@@ -99,13 +113,13 @@
 							<p class="text-sm text-muted-foreground">Searching...</p>
 						{:else if searchResults.length > 0}
 							<div class="space-y-3 max-h-[600px] overflow-y-auto">
-								{#each searchResults as book}
+								{#each searchResults as book (book.workKey)}
 									<div class="flex gap-3 rounded-lg border p-3">
 										<!-- Book Cover -->
 										<div class="relative h-24 w-16 flex-shrink-0 overflow-hidden rounded bg-muted">
-											{#if book.cover_url}
+											{#if book.coverUrl}
 												<img
-													src={book.cover_url}
+													src={book.coverUrl}
 													alt={book.title}
 													class="h-full w-full object-cover"
 												/>
@@ -124,16 +138,19 @@
 													{book.authors.join(', ')}
 												</p>
 											{/if}
-											{#if book.published_date}
+											{#if book.firstPublishYear}
 												<p class="mt-1 text-xs text-muted-foreground">
-													{new Date(book.published_date).getFullYear()}
+													{book.firstPublishYear}
 												</p>
+											{/if}
+											{#if book.source === 'database'}
+												<Badge variant="outline" class="mt-1 text-[10px]">In Database</Badge>
 											{/if}
 										</div>
 
 										<!-- Add Button -->
 										<div class="flex-shrink-0">
-											{#if isBookInList(book.google_books_id)}
+											{#if isBookInList(book.workKey)}
 												<Badge variant="secondary" class="text-xs">In List</Badge>
 											{:else}
 												<form
@@ -150,7 +167,7 @@
 													<input
 														type="hidden"
 														name="bookData"
-														value={JSON.stringify(book)}
+														value={JSON.stringify(toBookData(book))}
 													/>
 													<Button type="submit" size="sm">
 														<Plus class="h-4 w-4" />
