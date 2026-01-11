@@ -71,7 +71,7 @@
 			<!-- Book Details -->
 			<div class="flex flex-1 flex-col">
 				<div class="flex items-start justify-between gap-2">
-					<a href="/book/{book.id}" class="flex-1">
+					<a href="/book/{book.id}" class="flex-1" data-sveltekit-preload-data="off">
 						<h3 class="page-heading line-clamp-2 text-base transition-colors hover:text-primary">
 							{book.title}
 						</h3>

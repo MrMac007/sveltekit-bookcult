@@ -218,42 +218,86 @@ function calculateNormalizedPopularity(doc: OpenLibrarySearchDoc): number {
 
 	if (rawScore <= 0) return 0;
 
-	// Logarithmic scaling: log10(1) = 0, log10(100) = 2, log10(1,000,000) = 6
+	// Two-tier scaling to better distinguish popular books
+	// Low popularity (raw < 1000): moderate growth
+	// High popularity (raw >= 1000): continues growing faster
 	const logScore = Math.log10(rawScore + 1);
-	return Math.min(1000, logScore * 166);
+
+	if (rawScore < 1000) {
+		// log10(1000) ≈ 3, so max here is ~500
+		return Math.min(500, logScore * 166);
+	} else {
+		// Popular books get 500 base + bonus for extreme popularity
+		// log10(1000)=3, log10(10000)=4, log10(100000)=5
+		// rawScore 17958 → logScore ≈ 4.25 → bonus = 1.25 * 400 = 500
+		return Math.min(1200, 500 + (logScore - 3) * 400);
+	}
 }
 
 /**
  * Detect if a book belongs to a series that matches the search query.
- * Open Library stores series info in subjects with patterns like:
+ * Open Library stores series info in subjects with various patterns:
+ * - "series:Harry_Potter" (underscore-separated)
  * - "Hunger Games Series"
- * - "Harry Potter"
- * - "Serie: The Hunger Games"
+ * - "nyt:series_books=2010-08-21"
+ * - "Harry Potter (Fictitious character)" (character names)
  */
 function detectSeriesFromSubjects(subjects: string[] | undefined, query: string): boolean {
 	if (!subjects || subjects.length === 0) return false;
 
 	const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
 	const queryWords = normalizedQuery.split(/\s+/);
+	// Also create underscore version for series:Name_Name patterns
+	const queryUnderscore = queryWords.join('_');
 
 	for (const subject of subjects) {
 		const normalizedSubject = subject.toLowerCase();
 
-		// Check for series-related keywords
+		// Pattern 1: "series:Harry_Potter" style
+		if (normalizedSubject.startsWith('series:')) {
+			const seriesName = normalizedSubject.slice(7).replace(/_/g, ' ');
+			if (seriesName.includes(normalizedQuery) || normalizedQuery.includes(seriesName)) {
+				return true;
+			}
+			// Also check underscore version
+			if (normalizedSubject.includes(queryUnderscore)) {
+				return true;
+			}
+		}
+
+		// Pattern 2: "nyt:series_books" indicates NYT bestseller series
+		if (normalizedSubject.startsWith('nyt:series_books')) {
+			// This book is part of a series - check if title/other subjects match query
+			// We'll return true for these if other checks pass below
+		}
+
+		// Pattern 3: Series-related keywords
 		const isSeriesSubject =
 			normalizedSubject.includes('series') ||
-			normalizedSubject.startsWith('serie:') ||
 			normalizedSubject.includes('trilogy') ||
 			normalizedSubject.includes('saga');
 
 		if (isSeriesSubject) {
-			// Check if query words appear in the subject
 			const matchesQuery = queryWords.every(word => normalizedSubject.includes(word));
 			if (matchesQuery) return true;
 		}
 
-		// Also check for exact series name matches (e.g., "Harry Potter" subject)
-		if (queryWords.length >= 2 && normalizedSubject === normalizedQuery) {
+		// Pattern 4: Character name patterns like "Harry Potter (Fictitious character)"
+		// These indicate the book features this character prominently
+		if (normalizedSubject.includes('(fictitious character)') ||
+			normalizedSubject.includes('(fictional character)') ||
+			normalizedSubject.includes('(personnage fictif)')) {
+			// Extract character name (everything before the parenthesis)
+			const charName = normalizedSubject.split('(')[0].trim();
+			// Check if query matches character name
+			if (queryWords.every(word => charName.includes(word))) {
+				return true;
+			}
+		}
+
+		// Pattern 5: Direct subject match (e.g., subject is exactly "Harry Potter")
+		const subjectClean = normalizedSubject.replace(/[^a-z0-9\s]/g, '').trim();
+		if (queryWords.length >= 2 && subjectClean === normalizedQuery) {
 			return true;
 		}
 	}
@@ -269,9 +313,18 @@ function extractYear(dateStr: string): number | null {
 	return match ? parseInt(match[0], 10) : null;
 }
 
+// Premium UK publishers - these get the highest priority for consistent series covers
+const PREMIUM_UK_PUBLISHERS = [
+	'bloomsbury',          // Harry Potter, many literary fiction
+	'scholastic',          // Hunger Games, many children's books
+	'puffin',              // Classic children's books
+	'penguin',             // Wide range
+];
+
 /**
  * Score an edition for UK market preference.
  * Returns 0 for unusable editions (no cover, non-English).
+ * Prioritizes premium UK publishers for consistent series covers.
  */
 function scoreEditionForUK(edition: OpenLibraryEdition): number {
 	let score = 0;
@@ -280,7 +333,19 @@ function scoreEditionForUK(edition: OpenLibraryEdition): number {
 	if (!edition.covers || edition.covers.length === 0 || edition.covers[0] <= 0) {
 		return 0;
 	}
+	const coverId = edition.covers[0];
 	score += 100; // Base score for having a cover
+
+	// Bonus for higher cover IDs (newer uploads, more likely to be current editions)
+	// Cover IDs range from ~1 to ~15,000,000+
+	// Give up to 30 points for covers in the top range
+	if (coverId > 10000000) {
+		score += 30;
+	} else if (coverId > 5000000) {
+		score += 20;
+	} else if (coverId > 1000000) {
+		score += 10;
+	}
 
 	// Must be English
 	const isEnglish = edition.languages?.some(l => l.key === '/languages/eng') ??
@@ -291,16 +356,20 @@ function scoreEditionForUK(edition: OpenLibraryEdition): number {
 	}
 	score += 50;
 
-	// Publisher scoring
+	// Publisher scoring - premium UK publishers get big bonus for consistency
 	const publisherLower = (edition.publishers?.[0] || '').toLowerCase();
 
-	// UK publishers get highest boost
-	if (UK_PUBLISHERS.some(p => publisherLower.includes(p))) {
-		score += 40;
+	// Premium UK publishers (best for consistent series covers)
+	if (PREMIUM_UK_PUBLISHERS.some(p => publisherLower.includes(p))) {
+		score += 80; // Big bonus for premium publishers
 	}
-	// Quality international publishers get medium boost
+	// Other UK publishers
+	else if (UK_PUBLISHERS.some(p => publisherLower.includes(p))) {
+		score += 50;
+	}
+	// Quality international publishers
 	else if (QUALITY_PUBLISHERS.some(p => publisherLower.includes(p))) {
-		score += 25;
+		score += 30;
 	}
 
 	// ISBN availability (indicates proper trade edition)
@@ -311,14 +380,15 @@ function scoreEditionForUK(edition: OpenLibraryEdition): number {
 		score += 5;
 	}
 
-	// Publication recency (newer editions often have better covers)
+	// Publication recency (newer editions often have better/consistent covers)
 	if (edition.publish_date) {
 		const year = extractYear(edition.publish_date);
 		if (year) {
 			const age = new Date().getFullYear() - year;
-			if (age <= 5) score += 20;
+			if (age <= 3) score += 30;      // Very recent - likely current edition
+			else if (age <= 5) score += 25;
 			else if (age <= 10) score += 15;
-			else if (age <= 15) score += 10;
+			else if (age <= 15) score += 5;
 		}
 	}
 
@@ -371,9 +441,9 @@ export class OpenLibraryAPI {
 			'currently_reading_count',
 			'already_read_count'
 		].join(','));
-		// Sort by editions (popularity proxy) - books with more editions are more well-known
-		url.searchParams.set('sort', 'editions');
-		// NOTE: Removed language=eng filter as it's too restrictive and doesn't work well with Open Library
+		// NOTE: Removed sort=editions as it prioritizes edition count globally, not relevance
+		// Instead, let Open Library return relevance-sorted results, then apply our own scoring
+		// which balances title match, popularity, and series detection
 
 		const response = await fetch(url.toString(), {
 			headers: {
@@ -674,12 +744,13 @@ export class OpenLibraryAPI {
 	/**
 	 * Search and normalize results with smart ranking.
 	 *
-	 * Scoring weights (rebalanced to prioritize popular books):
-	 * - Title exact match: 1000 (was 2000)
-	 * - Title starts with: 800 (was 1500)
-	 * - Title contains: 400 (was 500)
-	 * - Popularity: up to 1000 via logarithmic scale (was max 200)
-	 * - Series match: +300 for books in a matching series
+	 * Scoring weights (rebalanced to prioritize popular books and series):
+	 * - Title exact match: 1000
+	 * - Title starts with: 800
+	 * - Title contains: 400
+	 * - Popularity: up to 1000 via logarithmic scale
+	 * - Series match: +500 for books in a matching series
+	 * - Related popular book: +150 for popular books with query words
 	 * - Author match: +200 exact, +100 partial
 	 * - Rating boost: up to 50
 	 */
@@ -703,24 +774,29 @@ export class OpenLibraryAPI {
 			const titleLower = (book.title || '').toLowerCase();
 			let matchScore = 0;
 
-			// Title matching (reduced weights to let popularity shine)
+			// Title matching - narrow gaps so popularity can differentiate
+			// "The Hunger Games" should score nearly as well as "Hunger Games"
 			if (titleLower === normalizedQuery) {
-				matchScore = 1000; // Exact match
+				matchScore = 500; // Exact match
 			} else if (titleLower.startsWith(normalizedQuery)) {
-				matchScore = 800;
+				matchScore = 450;
 			} else {
 				const titleWithoutArticle = titleLower.replace(/^(the|a|an)\s+/, '');
-				if (titleWithoutArticle.startsWith(normalizedQuery)) {
-					matchScore = 750;
+				if (titleWithoutArticle === normalizedQuery) {
+					matchScore = 480; // Near-exact after removing article
+				} else if (titleWithoutArticle.startsWith(normalizedQuery)) {
+					matchScore = 420;
 				} else if (titleLower.includes(normalizedQuery)) {
-					matchScore = 400;
+					matchScore = 300;
 				}
 			}
 
-			// Series detection boost - shows related books in a series
-			// e.g., searching "hunger games" will boost "Catching Fire" and "Mockingjay"
-			if (detectSeriesFromSubjects(doc.subject, query)) {
-				matchScore += 300;
+			// Series detection boost - only for books with decent popularity
+			// This prevents obscure academic books from getting series boost
+			const isSeriesMatch = detectSeriesFromSubjects(doc.subject, query);
+			const hasMinPopularity = (doc.edition_count || 0) >= 20;
+			if (isSeriesMatch && hasMinPopularity) {
+				matchScore += 300; // Moderate boost for series matches with popularity
 			}
 
 			// Popularity boost using logarithmic scaling (can now be up to 1000)
@@ -735,6 +811,26 @@ export class OpenLibraryAPI {
 					matchScore += 200;
 				} else if (authorsLower.some((a) => a.includes(normalizedAuthor))) {
 					matchScore += 100;
+				}
+			}
+
+			// Additional series heuristic: popular books by known series authors
+			// If a book is very popular AND shares author with high-scoring books, boost it
+			// This helps catch sequels like "Catching Fire" when searching "hunger games"
+			const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 2);
+			const isPopularBook = (doc.edition_count || 0) > 30;
+
+			if (isPopularBook && !isSeriesMatch && matchScore < 800) {
+				// Check if any author's other works might be related
+				// For now, just give a small boost to popular books that have
+				// ANY of the query words in title or subject
+				const hasQueryWordInTitle = queryWords.some(w => titleLower.includes(w));
+				const hasQueryWordInSubjects = queryWords.some(w =>
+					(doc.subject || []).some(s => s.toLowerCase().includes(w))
+				);
+
+				if (hasQueryWordInTitle || hasQueryWordInSubjects) {
+					matchScore += 150; // Moderate boost for potentially related popular books
 				}
 			}
 

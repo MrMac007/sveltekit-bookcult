@@ -45,7 +45,7 @@
 </script>
 
 {#if clickable && bookId}
-	<a href="/book/{bookId}" class="block transition-transform hover:scale-105">
+	<a href="/book/{bookId}" class="block transition-transform hover:scale-105" data-sveltekit-preload-data="off">
 		<div class="relative {sizeClasses[size]} overflow-hidden rounded-lg bg-muted {className}">
 			{#if showImage}
 				<img
