@@ -86,6 +86,3 @@ export type {
   OpenLibraryEdition,
   NormalizedBook as OpenLibraryNormalizedBook
 } from '$lib/api/open-library';
-
-// Re-export unified book type from search service
-export type { UnifiedBook, SearchOptions } from '$lib/api/book-search-service';
