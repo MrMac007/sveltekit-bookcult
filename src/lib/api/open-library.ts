@@ -703,8 +703,19 @@ export class OpenLibraryAPI {
 		const isbn13 = isbns.find((isbn) => isbn.length === 13);
 		const isbn10 = isbns.find((isbn) => isbn.length === 10);
 
-		// Get first publish year as date
-		const publishedDate = doc.first_publish_year?.toString();
+		// Get first publish year as date - validate for modern books
+		let publishedDate = doc.first_publish_year?.toString();
+
+		// Suspicious date check: If a book has many editions but claims pre-1900 publication,
+		// it's likely bad data (Harry Potter shouldn't be 1900)
+		if (doc.first_publish_year === 1900) {
+			const hasModernEngagement = (doc.edition_count || 0) > 50 ||
+				(doc.want_to_read_count || 0) > 100;
+			if (hasModernEngagement) {
+				// Clear the suspicious date - let UI show "Unknown" instead of wrong date
+				publishedDate = undefined;
+			}
+		}
 
 		// Get categories from subjects (take top 5 most relevant)
 		const categories = (doc.subject || [])
@@ -769,7 +780,23 @@ export class OpenLibraryAPI {
 		const normalizedQuery = query.toLowerCase().trim();
 		const normalizedAuthor = author?.toLowerCase().trim() || '';
 
-		const scoredBooks = response.docs.map((doc) => {
+		// Filter out irrelevant results before scoring
+		// At least one significant query word must appear in title or author
+		const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 2);
+		const relevantDocs = response.docs.filter((doc) => {
+			const titleLower = (doc.title || '').toLowerCase();
+			const authorsLower = (doc.author_name || []).join(' ').toLowerCase();
+			const combined = titleLower + ' ' + authorsLower;
+
+			// If query has significant words, at least one must appear
+			if (queryWords.length > 0) {
+				return queryWords.some(word => combined.includes(word));
+			}
+			// For very short queries, require the whole query to appear
+			return combined.includes(normalizedQuery);
+		});
+
+		const scoredBooks = relevantDocs.map((doc) => {
 			const book = this.normalizeSearchDoc(doc);
 			const titleLower = (book.title || '').toLowerCase();
 			let matchScore = 0;
@@ -839,14 +866,41 @@ export class OpenLibraryAPI {
 				matchScore += Math.min((book.ratings_average || 0) * 10, 50);
 			}
 
+			// Penalize results with suspicious/bad data
+			// Books published before 1900 with high modern engagement = likely bad data
+			if (doc.first_publish_year === 1900) {
+				const hasModernEngagement = (doc.edition_count || 0) > 50;
+				if (hasModernEngagement) {
+					matchScore -= 100; // Push results with bad dates down
+				}
+			}
+
 			return { ...book, matchScore };
 		});
 
 		// Sort by match score
 		const sorted = scoredBooks.sort((a, b) => b.matchScore - a.matchScore);
 
-		// Remove matchScore before returning
-		return sorted.slice(0, maxResults).map(({ matchScore, ...book }) => book);
+		// Take top results and remove matchScore
+		const topResults = sorted.slice(0, maxResults).map(({ matchScore, ...book }) => book);
+
+		// Fetch UK-preferred covers for better consistency (especially for series)
+		// This replaces the default covers with preferred UK publisher editions
+		const resultsWithUKCovers = await Promise.all(
+			topResults.map(async (book) => {
+				try {
+					const ukEdition = await this.getBestEditionForUK(book.open_library_key);
+					if (ukEdition?.coverUrl) {
+						return { ...book, cover_url: ukEdition.coverUrl };
+					}
+				} catch {
+					// Silently fall back to original cover on error
+				}
+				return book;
+			})
+		);
+
+		return resultsWithUKCovers;
 	}
 
 	/**
