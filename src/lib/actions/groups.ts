@@ -324,3 +324,94 @@ export async function reorderReadingList(event: RequestEvent) {
     return fail(500, { error: error?.message || 'Failed to reorder reading list' })
   }
 }
+
+/**
+ * Set a deadline for the current reading book (admin only)
+ */
+export async function setCurrentBookDeadline(event: RequestEvent) {
+  const supabase = createClient(event)
+  const db = supabase as any
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return fail(401, { error: 'Not authenticated' })
+  }
+
+  const formData = await event.request.formData()
+  const groupId = formData.get('groupId') as string
+  const deadline = formData.get('deadline') as string
+
+  try {
+    // Check if current user is admin
+    const { data: membership } = await db
+      .from('group_members')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!membership || membership.role !== 'admin') {
+      return fail(403, { error: 'Only admins can set deadlines' })
+    }
+
+    // Update the group's deadline
+    const { error } = await db
+      .from('groups')
+      .update({ current_book_deadline: deadline })
+      .eq('id', groupId)
+
+    if (error) throw error
+
+    return { success: true, message: 'Deadline set' }
+  } catch (error) {
+    console.error('Error setting deadline:', error)
+    return fail(500, { error: 'Failed to set deadline' })
+  }
+}
+
+/**
+ * Clear the deadline for the current reading book (admin only)
+ */
+export async function clearCurrentBookDeadline(event: RequestEvent) {
+  const supabase = createClient(event)
+  const db = supabase as any
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return fail(401, { error: 'Not authenticated' })
+  }
+
+  const formData = await event.request.formData()
+  const groupId = formData.get('groupId') as string
+
+  try {
+    // Check if current user is admin
+    const { data: membership } = await db
+      .from('group_members')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!membership || membership.role !== 'admin') {
+      return fail(403, { error: 'Only admins can clear deadlines' })
+    }
+
+    // Clear the group's deadline
+    const { error } = await db
+      .from('groups')
+      .update({ current_book_deadline: null })
+      .eq('id', groupId)
+
+    if (error) throw error
+
+    return { success: true, message: 'Deadline cleared' }
+  } catch (error) {
+    console.error('Error clearing deadline:', error)
+    return fail(500, { error: 'Failed to clear deadline' })
+  }
+}

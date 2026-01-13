@@ -2,6 +2,7 @@ import { createClient } from '$lib/supabase/server'
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import type { Database, WallStyle } from '$lib/types/database'
+import { setReadingGoal, deleteReadingGoal, getReadingGoalProgress } from '$lib/actions/goals'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -75,6 +76,8 @@ export const load: PageServerLoad = async (event) => {
 
   const profile = profileData as Profile
 
+  const currentYear = new Date().getFullYear()
+
   // Run remaining queries in parallel for faster loading
   const [
     wishlistCountResult,
@@ -85,6 +88,7 @@ export const load: PageServerLoad = async (event) => {
     favoriteBooksResult,
     wishlistBooksResult,
     completedBooksResult,
+    readingGoalProgress,
   ] = await Promise.all([
     // Get wishlist count
     supabase
@@ -202,6 +206,9 @@ export const load: PageServerLoad = async (event) => {
       `
       )
       .eq('user_id', user.id),
+
+    // Get reading goal progress
+    getReadingGoalProgress(supabase as any, user.id, currentYear),
   ])
 
   const currentlyReadingItems =
@@ -253,6 +260,11 @@ export const load: PageServerLoad = async (event) => {
     favoriteBooks: favoriteBooksWithDetails,
     availableBooks,
     wallStyle: (profile.wall_style || 'sticky-notes') as WallStyle,
+    readingGoal: {
+      target: readingGoalProgress.target,
+      completed: readingGoalProgress.completed,
+      year: currentYear,
+    },
   }
 }
 
@@ -411,6 +423,44 @@ export const actions: Actions = {
     if (error) {
       console.error('Error deleting quote:', error)
       return fail(500, { error: 'Failed to delete quote' })
+    }
+
+    return { success: true }
+  },
+
+  setReadingGoal: async (event) => {
+    const formData = await event.request.formData()
+    const yearStr = formData.get('year') as string
+    const targetStr = formData.get('target') as string
+
+    const year = parseInt(yearStr, 10)
+    const target = parseInt(targetStr, 10)
+
+    if (isNaN(year) || isNaN(target)) {
+      return fail(400, { error: 'Invalid year or target' })
+    }
+
+    const result = await setReadingGoal(event, year, target)
+    if (!result.success) {
+      return fail(400, { error: result.error })
+    }
+
+    return { success: true }
+  },
+
+  deleteReadingGoal: async (event) => {
+    const formData = await event.request.formData()
+    const yearStr = formData.get('year') as string
+
+    const year = parseInt(yearStr, 10)
+
+    if (isNaN(year)) {
+      return fail(400, { error: 'Invalid year' })
+    }
+
+    const result = await deleteReadingGoal(event, year)
+    if (!result.success) {
+      return fail(400, { error: result.error })
     }
 
     return { success: true }

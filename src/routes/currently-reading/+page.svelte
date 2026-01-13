@@ -4,11 +4,46 @@
 	import { Button } from '$lib/components/ui/button';
 	import BookCover from '$lib/components/ui/book-cover.svelte';
 	import EmptyState from '$lib/components/ui/empty-state.svelte';
+	import MarkCompleteDialog from '$lib/components/books/mark-complete-dialog.svelte';
 	import { formatRelativeTime } from '$lib/utils/date';
-	import { BookOpen, BookCheck, Trash2, Clock } from 'lucide-svelte';
+	import { BookOpen, BookCheck, Trash2, Clock, Loader2 } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	let showCompleteDialog = $state(false);
+	let selectedBook = $state<{ id: string; title: string } | null>(null);
+	let isSubmitting = $state(false);
+
+	function openCompleteDialog(bookId: string, bookTitle: string) {
+		selectedBook = { id: bookId, title: bookTitle };
+		showCompleteDialog = true;
+	}
+
+	async function handleMarkComplete(completedAt: string) {
+		if (!selectedBook) return;
+
+		isSubmitting = true;
+		const formData = new FormData();
+		formData.append('bookId', selectedBook.id);
+		formData.append('completedAt', completedAt);
+
+		const response = await fetch('?/markComplete', {
+			method: 'POST',
+			body: formData
+		});
+
+		isSubmitting = false;
+		showCompleteDialog = false;
+
+		if (response.ok) {
+			const result = await response.json();
+			if (result.type === 'redirect') {
+				goto(result.location);
+			}
+		}
+	}
 </script>
 
 <AppLayout title="Currently Reading">
@@ -77,13 +112,23 @@
 									</div>
 
 									<div class="mt-3 flex flex-wrap gap-2">
-										<form method="POST" action="?/markComplete" class="flex-1 min-w-[140px]">
-											<input type="hidden" name="bookId" value={book.id} />
-											<Button type="submit" variant="default" size="sm" class="w-full gap-1.5">
-												<BookCheck class="h-3.5 w-3.5" />
-												Mark Complete
+										<div class="flex-1 min-w-[140px]">
+											<Button
+												variant="default"
+												size="sm"
+												class="w-full gap-1.5"
+												onclick={() => openCompleteDialog(book.id, book.title)}
+												disabled={isSubmitting && selectedBook?.id === book.id}
+											>
+												{#if isSubmitting && selectedBook?.id === book.id}
+													<Loader2 class="h-3.5 w-3.5 animate-spin" />
+													Completing...
+												{:else}
+													<BookCheck class="h-3.5 w-3.5" />
+													Mark Complete
+												{/if}
 											</Button>
-										</form>
+										</div>
 										<form
 											method="POST"
 											action="?/remove"
@@ -115,3 +160,10 @@
 		{/if}
 	</div>
 </AppLayout>
+
+<MarkCompleteDialog
+	bind:open={showCompleteDialog}
+	bookTitle={selectedBook?.title}
+	isSubmitting={isSubmitting}
+	onConfirm={handleMarkComplete}
+/>

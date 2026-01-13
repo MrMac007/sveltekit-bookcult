@@ -105,6 +105,7 @@ export const actions: Actions = {
 
     const formData = await event.request.formData()
     const bookId = formData.get('bookId') as string
+    const completedAt = formData.get('completedAt') as string | null
 
     try {
       // Check if already completed
@@ -123,11 +124,18 @@ export const actions: Actions = {
       // Remove from wishlist
       await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId)
 
-      // Add to completed books
-      const { error } = await supabase.from('completed_books').insert({
+      // Add to completed books with optional date
+      const insertData: Record<string, unknown> = {
         user_id: user.id,
         book_id: bookId,
-      } as any)
+      }
+
+      if (completedAt) {
+        insertData.completed_at = completedAt
+        insertData.date_confirmed = true
+      }
+
+      const { error } = await supabase.from('completed_books').insert(insertData as any)
 
       if (error) throw error
 

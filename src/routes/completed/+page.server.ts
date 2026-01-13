@@ -19,6 +19,7 @@ export const load: PageServerLoad = async (event) => {
       `
       id,
       completed_at,
+      date_confirmed,
       books (
         id,
         google_books_id,
@@ -91,6 +92,48 @@ export const actions: Actions = {
     } catch (err) {
       console.error('Error removing completed book:', err)
       return fail(500, { error: 'Failed to remove book' })
+    }
+  },
+
+  updateDate: async (event) => {
+    const supabase = createClient(event)
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw redirect(303, '/login')
+    }
+
+    const formData = await event.request.formData()
+    const bookId = formData.get('bookId')
+    const completedAt = formData.get('completedAt')
+
+    if (!bookId || typeof bookId !== 'string') {
+      return fail(400, { error: 'Missing book id' })
+    }
+
+    if (!completedAt || typeof completedAt !== 'string') {
+      return fail(400, { error: 'Missing completion date' })
+    }
+
+    try {
+      const { error } = await (supabase as any)
+        .from('completed_books')
+        .update({
+          completed_at: completedAt,
+          date_confirmed: true
+        })
+        .eq('user_id', user.id)
+        .eq('book_id', bookId)
+
+      if (error) throw error
+
+      return { success: true }
+    } catch (err) {
+      console.error('Error updating completion date:', err)
+      return fail(500, { error: 'Failed to update date' })
     }
   },
 }

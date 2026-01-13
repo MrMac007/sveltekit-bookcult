@@ -5,11 +5,51 @@
 	import { StarRating } from '$lib/components/ui/star-rating';
 	import BookCover from '$lib/components/ui/book-cover.svelte';
 	import EmptyState from '$lib/components/ui/empty-state.svelte';
+	import EditDateDialog from '$lib/components/books/edit-date-dialog.svelte';
 	import { formatDate } from '$lib/utils/date';
-	import { BookCheck, Calendar, Edit, Trash2 } from 'lucide-svelte';
+	import { BookCheck, Calendar, Edit, Trash2, Pencil } from 'lucide-svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	let showEditDateDialog = $state(false);
+	let selectedItem = $state<{
+		bookId: string;
+		bookTitle: string;
+		completedAt: string;
+	} | null>(null);
+	let isSubmitting = $state(false);
+
+	function openEditDateDialog(bookId: string, bookTitle: string, completedAt: string) {
+		selectedItem = { bookId, bookTitle, completedAt };
+		showEditDateDialog = true;
+	}
+
+	async function handleUpdateDate(completedAt: string) {
+		if (!selectedItem) return;
+
+		isSubmitting = true;
+		const formData = new FormData();
+		formData.append('bookId', selectedItem.bookId);
+		formData.append('completedAt', completedAt);
+
+		const response = await fetch('?/updateDate', {
+			method: 'POST',
+			body: formData
+		});
+
+		isSubmitting = false;
+		showEditDateDialog = false;
+
+		if (response.ok) {
+			toast.success('Date updated');
+			invalidateAll();
+		} else {
+			toast.error('Failed to update date');
+		}
+	}
 </script>
 
 <AppLayout title="Completed Books">
@@ -51,10 +91,20 @@
 											</p>
 										{/if}
 
-										<div class="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-											<Calendar class="h-3.5 w-3.5" />
-											<span>Completed {formatDate(item.completed_at)}</span>
-										</div>
+										<button
+									type="button"
+									class="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+									onclick={() => openEditDateDialog(item.books.id, item.books.title, item.completed_at)}
+								>
+									<Calendar class="h-3.5 w-3.5" />
+									<span>
+										Completed {formatDate(item.completed_at)}
+										{#if !item.date_confirmed}
+											<span class="text-amber-500">(unconfirmed)</span>
+										{/if}
+									</span>
+									<Pencil class="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+								</button>
 
 										{#if item.rating?.rating !== undefined}
 											<div class="mt-3">
@@ -107,3 +157,11 @@
 		{/if}
 	</div>
 </AppLayout>
+
+<EditDateDialog
+	bind:open={showEditDateDialog}
+	bookTitle={selectedItem?.bookTitle}
+	currentDate={selectedItem?.completedAt ?? ''}
+	isSubmitting={isSubmitting}
+	onConfirm={handleUpdateDate}
+/>

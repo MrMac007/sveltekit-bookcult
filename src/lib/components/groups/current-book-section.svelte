@@ -3,6 +3,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { BookOpen, BookMarked, Users, ChevronDown, ChevronUp } from 'lucide-svelte';
+	import BookDeadlineCountdown from './book-deadline-countdown.svelte';
 
 	interface CurrentBook {
 		id: string;
@@ -33,9 +34,11 @@
 		groupId: string;
 		currentUserId: string;
 		isAdmin: boolean;
+		deadline?: string | null;
+		hasUserCompleted?: boolean;
 	}
 
-	let { currentBook, isCurrentUserReading, readingMembers, groupId, currentUserId, isAdmin }: Props = $props();
+	let { currentBook, isCurrentUserReading, readingMembers, groupId, currentUserId, isAdmin, deadline = null, hasUserCompleted = false }: Props = $props();
 	let showMembers = $state(false);
 
 	function getDisplayName(member: ReadingMember): string {
@@ -91,6 +94,16 @@
 						</p>
 					{/if}
 				</div>
+			</div>
+
+			<!-- Deadline Countdown -->
+			<div class="mt-4">
+				<BookDeadlineCountdown
+					{deadline}
+					{hasUserCompleted}
+					{isAdmin}
+					{groupId}
+				/>
 			</div>
 
 			<!-- Reading Status Actions -->

@@ -2,6 +2,7 @@
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import GroupHeader from '$lib/components/groups/group-header.svelte';
 	import GroupMembers from '$lib/components/groups/group-members.svelte';
+	import GroupGoalSection from '$lib/components/groups/group-goal-section.svelte';
 	import CurrentBookSection from '$lib/components/groups/current-book-section.svelte';
 	import GroupRatings from '$lib/components/groups/group-ratings.svelte';
 	import UpNextSection from '$lib/components/groups/up-next-section.svelte';
@@ -45,6 +46,14 @@
 							groupId={data.group.id}
 						/>
 
+						<GroupGoalSection
+							target={data.groupGoal.target}
+							completed={data.groupGoal.completed}
+							year={data.groupGoal.year}
+							isAdmin={data.group.isAdmin}
+							groupId={data.group.id}
+						/>
+
 						<CurrentBookSection
 							currentBook={data.group.currentBook}
 							isCurrentUserReading={data.group.isCurrentUserReading}
@@ -52,6 +61,8 @@
 							groupId={data.group.id}
 							currentUserId={data.currentUserId}
 							isAdmin={data.group.isAdmin}
+							deadline={data.group.current_book_deadline}
+							hasUserCompleted={data.group.hasUserCompletedCurrentBook}
 						/>
 
 						<UpNextSection

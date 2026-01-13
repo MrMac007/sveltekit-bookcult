@@ -2,6 +2,7 @@
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import StatCard from '$lib/components/ui/stat-card.svelte';
+	import ReadingGoalCard from '$lib/components/profile/reading-goal-card.svelte';
 	import CurrentlyReadingSection from '$lib/components/profile/currently-reading-section.svelte';
 	import QuoteWall from '$lib/components/profile/quote-wall.svelte';
 	import QuoteWallEditor from '$lib/components/profile/quote-wall-editor.svelte';
@@ -16,7 +17,7 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	
+
 	let editDialogOpen = $state(false);
 	let quoteWallEditorOpen = $state(false);
 </script>
@@ -48,7 +49,7 @@
 		</div>
 
 		<!-- Stats -->
-		<div class="mb-8 grid grid-cols-3 items-stretch gap-2 sm:gap-3">
+		<div class="mb-8 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-4 sm:gap-3">
 			<StatCard icon={BookMarked} value={data.wishlistCount} label="Want to Read" href="/wishlist" />
 			<StatCard
 				icon={BookOpen}
@@ -57,6 +58,12 @@
 				href="/currently-reading"
 			/>
 			<StatCard icon={BookCheck} value={data.completedCount} label="Completed" href="/completed" />
+			<ReadingGoalCard
+				target={data.readingGoal.target}
+				completed={data.readingGoal.completed}
+				year={data.readingGoal.year}
+				isOwnProfile={true}
+			/>
 		</div>
 
 		<!-- Currently Reading Section -->

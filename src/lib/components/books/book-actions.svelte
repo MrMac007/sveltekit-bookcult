@@ -6,6 +6,7 @@
 	import { toast } from 'svelte-sonner';
 	import type { BookCardData } from '$lib/types/api';
 	import type { User } from '@supabase/supabase-js';
+	import MarkCompleteDialog from './mark-complete-dialog.svelte';
 
 	interface Props {
 		user: User;
@@ -34,6 +35,7 @@
 	let addingToWishlist = $state(false);
 	let togglingReading = $state(false);
 	let markingComplete = $state(false);
+	let showCompleteDialog = $state(false);
 
 	// Local state mirrors
 	let localIsInWishlist = $state(isInWishlist);
@@ -181,10 +183,16 @@
 		}
 	}
 
-	async function handleMarkComplete() {
+	function openCompleteDialog() {
+		if (localIsCompleted) return;
+		showCompleteDialog = true;
+	}
+
+	async function handleMarkComplete(completedAt: string) {
 		if (markingComplete || localIsCompleted) return;
 
 		markingComplete = true;
+		showCompleteDialog = false;
 		try {
 			const dbBookId = await ensureBookInDb();
 			if (!dbBookId) {
@@ -201,10 +209,12 @@
 				.eq('user_id', user.id)
 				.eq('book_id', dbBookId);
 
-			// Add to completed books
+			// Add to completed books with the selected date
 			const { error } = await supabase.from('completed_books').insert({
 				user_id: user.id,
-				book_id: dbBookId
+				book_id: dbBookId,
+				completed_at: completedAt,
+				date_confirmed: true
 			} as any);
 
 			if (error) {
@@ -285,7 +295,7 @@
 		<Button
 			size="sm"
 			variant="outline"
-			onclick={handleMarkComplete}
+			onclick={openCompleteDialog}
 			disabled={markingComplete}
 			class="flex-1"
 		>
@@ -304,3 +314,10 @@
 		</Button>
 	{/if}
 </div>
+
+<MarkCompleteDialog
+	bind:open={showCompleteDialog}
+	bookTitle={book.title}
+	isSubmitting={markingComplete}
+	onConfirm={handleMarkComplete}
+/>

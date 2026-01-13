@@ -53,6 +53,7 @@ export interface Database {
           created_at: string
           is_private: boolean
           current_book_id: string | null
+          current_book_deadline: string | null
         }
         Insert: {
           id?: string
@@ -63,6 +64,7 @@ export interface Database {
           created_at?: string
           is_private?: boolean
           current_book_id?: string | null
+          current_book_deadline?: string | null
         }
         Update: {
           id?: string
@@ -73,6 +75,7 @@ export interface Database {
           created_at?: string
           is_private?: boolean
           current_book_id?: string | null
+          current_book_deadline?: string | null
         }
       }
       group_members: {
@@ -239,18 +242,21 @@ export interface Database {
           user_id: string
           book_id: string
           completed_at: string
+          date_confirmed: boolean
         }
         Insert: {
           id?: string
           user_id: string
           book_id: string
           completed_at?: string
+          date_confirmed?: boolean
         }
         Update: {
           id?: string
           user_id?: string
           book_id?: string
           completed_at?: string
+          date_confirmed?: boolean
         }
       }
       ratings: {
@@ -438,6 +444,52 @@ export interface Database {
           user_id?: string
           book_id?: string
           display_order?: number
+          created_at?: string
+        }
+      }
+      reading_goals: {
+        Row: {
+          id: string
+          user_id: string
+          year: number
+          target: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          year: number
+          target: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          year?: number
+          target?: number
+          created_at?: string
+        }
+      }
+      group_reading_goals: {
+        Row: {
+          id: string
+          group_id: string
+          year: number
+          target: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          year: number
+          target: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          year?: number
+          target?: number
           created_at?: string
         }
       }

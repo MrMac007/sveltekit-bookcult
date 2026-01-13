@@ -107,6 +107,7 @@ export const actions: Actions = {
 
     const formData = await event.request.formData()
     const bookId = formData.get('bookId')
+    const completedAt = formData.get('completedAt') as string | null
 
     if (!bookId || typeof bookId !== 'string') {
       return fail(400, { error: 'Missing book id' })
@@ -127,10 +128,18 @@ export const actions: Actions = {
       await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId)
       await supabase.from('currently_reading').delete().eq('user_id', user.id).eq('book_id', bookId)
 
-      const { error: insertError } = await supabase.from('completed_books').insert({
+      // Add to completed books with optional date
+      const insertData: Record<string, unknown> = {
         user_id: user.id,
         book_id: bookId,
-      } as any)
+      }
+
+      if (completedAt) {
+        insertData.completed_at = completedAt
+        insertData.date_confirmed = true
+      }
+
+      const { error: insertError } = await supabase.from('completed_books').insert(insertData as any)
 
       if (insertError) {
         throw insertError

@@ -1,7 +1,8 @@
 import { createClient } from '$lib/supabase/server'
-import { error, redirect } from '@sveltejs/kit'
+import { error, redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as groupActions from '$lib/actions/groups'
+import { setGroupReadingGoal, deleteGroupReadingGoal, getGroupGoalProgress } from '$lib/actions/goals'
 
 interface GroupWithBook {
   id: string
@@ -9,6 +10,7 @@ interface GroupWithBook {
   description: string | null
   invite_code: string
   current_book_id: string | null
+  current_book_deadline: string | null
   books: {
     id: string
     google_books_id: string | null
@@ -73,6 +75,7 @@ export const load: PageServerLoad = async (event) => {
       description,
       invite_code,
       current_book_id,
+      current_book_deadline,
       books (
         id,
         google_books_id,
@@ -107,6 +110,10 @@ export const load: PageServerLoad = async (event) => {
   }
 
   const typedMembership = userMembership as { role: 'member' | 'admin' }
+  const currentYear = new Date().getFullYear()
+
+  // Get group reading goal progress
+  const groupGoalProgress = await getGroupGoalProgress(supabase as any, groupId, currentYear)
 
   // Get all group members with profiles
   const { data: members } = await supabase
@@ -131,9 +138,11 @@ export const load: PageServerLoad = async (event) => {
 
   // Check if current user is reading the current book
   let isCurrentUserReading = false
+  let hasUserCompletedCurrentBook = false
   let readingMembers: any[] = []
 
   if (typedGroup.current_book_id) {
+    // Check if currently reading
     const { data: reading } = await supabase
       .from('currently_reading')
       .select('id')
@@ -142,6 +151,16 @@ export const load: PageServerLoad = async (event) => {
       .maybeSingle()
 
     isCurrentUserReading = !!reading
+
+    // Check if user has completed the current book
+    const { data: completed } = await supabase
+      .from('completed_books')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('book_id', typedGroup.current_book_id)
+      .maybeSingle()
+
+    hasUserCompletedCurrentBook = !!completed
 
     // Get members currently reading this book
     const { data: readers } = await supabase
@@ -264,10 +283,12 @@ export const load: PageServerLoad = async (event) => {
       description: typedGroup.description,
       invite_code: typedGroup.invite_code,
       current_book_id: typedGroup.current_book_id,
+      current_book_deadline: typedGroup.current_book_deadline,
       currentBook: typedGroup.books,
       isAdmin: typedMembership.role === 'admin',
       memberCount: typedMembers.length,
       isCurrentUserReading,
+      hasUserCompletedCurrentBook,
       readingMembers,
     },
     members: typedMembers,
@@ -275,6 +296,11 @@ export const load: PageServerLoad = async (event) => {
     upNextBooks,
     readingListBooks,
     currentUserId: user.id,
+    groupGoal: {
+      target: groupGoalProgress.target,
+      completed: groupGoalProgress.completed,
+      year: currentYear,
+    },
   }
 }
 
@@ -284,4 +310,47 @@ export const actions: Actions = {
   setCurrentReadingBook: groupActions.setCurrentReadingBook,
   toggleGroupBookReading: groupActions.toggleGroupBookReading,
   reorderReadingList: groupActions.reorderReadingList,
+
+  setGroupGoal: async (event) => {
+    const formData = await event.request.formData()
+    const groupId = event.params.groupId
+    const yearStr = formData.get('year') as string
+    const targetStr = formData.get('target') as string
+
+    const year = parseInt(yearStr, 10)
+    const target = parseInt(targetStr, 10)
+
+    if (isNaN(year) || isNaN(target)) {
+      return fail(400, { error: 'Invalid year or target' })
+    }
+
+    const result = await setGroupReadingGoal(event, groupId, year, target)
+    if (!result.success) {
+      return fail(400, { error: result.error })
+    }
+
+    return { success: true }
+  },
+
+  deleteGroupGoal: async (event) => {
+    const formData = await event.request.formData()
+    const groupId = event.params.groupId
+    const yearStr = formData.get('year') as string
+
+    const year = parseInt(yearStr, 10)
+
+    if (isNaN(year)) {
+      return fail(400, { error: 'Invalid year' })
+    }
+
+    const result = await deleteGroupReadingGoal(event, groupId, year)
+    if (!result.success) {
+      return fail(400, { error: result.error })
+    }
+
+    return { success: true }
+  },
+
+  setDeadline: groupActions.setCurrentBookDeadline,
+  clearDeadline: groupActions.clearCurrentBookDeadline,
 }
