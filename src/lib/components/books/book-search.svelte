@@ -4,6 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import { Search, Loader2 } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
 	import BookCard from './book-card.svelte';
 	import type { BookCardData } from '$lib/types/api';
 	import type { SearchResult } from '$lib/api/open-library-search';
@@ -167,7 +168,7 @@
 			// Rollback optimistic update
 			userLibrary.set(workKey, currentStatus);
 			userLibrary = new Map(userLibrary);
-			alert('Failed to add to wishlist. Please try again.');
+			toast.error('Failed to add to wishlist. Please try again.');
 		} finally {
 			isAddingBook = null;
 		}
@@ -219,7 +220,7 @@
 			// Rollback optimistic update
 			userLibrary.set(workKey, currentStatus);
 			userLibrary = new Map(userLibrary);
-			alert('Failed to mark as complete. Please try again.');
+			toast.error('Failed to mark as complete. Please try again.');
 		} finally {
 			isAddingBook = null;
 		}

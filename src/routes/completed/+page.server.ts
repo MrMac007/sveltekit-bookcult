@@ -82,8 +82,11 @@ export const actions: Actions = {
     }
 
     try {
-      await supabase.from('ratings').delete().eq('user_id', user.id).eq('book_id', bookId)
-      await supabase.from('completed_books').delete().eq('user_id', user.id).eq('book_id', bookId)
+      // Delete rating and completed_books entry in parallel (independent operations)
+      await Promise.all([
+        supabase.from('ratings').delete().eq('user_id', user.id).eq('book_id', bookId),
+        supabase.from('completed_books').delete().eq('user_id', user.id).eq('book_id', bookId)
+      ])
       return { success: true }
     } catch (err) {
       console.error('Error removing completed book:', err)

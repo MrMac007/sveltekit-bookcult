@@ -12,7 +12,25 @@
 
 	// Check if user has any quote wall content
 	const hasQuoteWallContent = data.userQuotes.length > 0 || data.favoriteBooks.length > 0;
+
+	const displayName = data.profile.display_name || data.profile.username;
+	const pageTitle = `${displayName} - BookCult`;
+	const pageDescription = data.profile.bio
+		? data.profile.bio.slice(0, 160) + (data.profile.bio.length > 160 ? '...' : '')
+		: `${displayName}'s reading profile on BookCult. ${data.completedCount} books completed, ${data.wishlistCount} on wishlist.`;
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+	<meta name="description" content={pageDescription} />
+	<meta property="og:title" content={displayName} />
+	<meta property="og:description" content={pageDescription} />
+	<meta property="og:type" content="profile" />
+	<meta property="profile:username" content={data.profile.username} />
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:title" content={displayName} />
+	<meta name="twitter:description" content={pageDescription} />
+</svelte:head>
 
 <AppLayout title={data.profile.display_name || data.profile.username}>
 	<div class="mx-auto max-w-4xl px-4 py-6 space-y-6">

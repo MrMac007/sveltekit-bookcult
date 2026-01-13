@@ -38,9 +38,53 @@
 	function handleMouseLeave() {
 		hoverRating = null;
 	}
+
+	function handleKeyDown(e: KeyboardEvent) {
+		if (readonly || !onchange) return;
+
+		const step = e.shiftKey ? 0.5 : 1; // Hold Shift for half-star increments
+		let newRating = value;
+
+		switch (e.key) {
+			case 'ArrowRight':
+			case 'ArrowUp':
+				e.preventDefault();
+				newRating = Math.min(5, value + step);
+				break;
+			case 'ArrowLeft':
+			case 'ArrowDown':
+				e.preventDefault();
+				newRating = Math.max(0, value - step);
+				break;
+			case 'Home':
+				e.preventDefault();
+				newRating = 0;
+				break;
+			case 'End':
+				e.preventDefault();
+				newRating = 5;
+				break;
+			default:
+				return;
+		}
+
+		if (newRating !== value) {
+			onchange(newRating);
+		}
+	}
 </script>
 
-<div class="flex items-center gap-1">
+<div
+	class="flex items-center gap-1"
+	role={readonly ? 'img' : 'slider'}
+	aria-label={readonly ? `Rating: ${value} out of 5 stars` : 'Star rating'}
+	aria-valuemin={readonly ? undefined : 0}
+	aria-valuemax={readonly ? undefined : 5}
+	aria-valuenow={readonly ? undefined : value}
+	aria-valuetext={`${value} out of 5 stars`}
+	tabindex={readonly ? undefined : 0}
+	onkeydown={handleKeyDown}
+>
 	{#each [0, 1, 2, 3, 4] as starIndex}
 		{@const fillPercentage = Math.max(0, Math.min(1, displayRating - starIndex))}
 		{@const isHalf = fillPercentage > 0 && fillPercentage < 1}
@@ -49,6 +93,8 @@
 		<button
 			type="button"
 			disabled={readonly}
+			tabindex={-1}
+			aria-hidden="true"
 			onmousemove={(e) => handleMouseMove(starIndex, e)}
 			onmouseleave={handleMouseLeave}
 			onclick={(e) => {
@@ -72,12 +118,12 @@
 		</button>
 	{/each}
 	{#if !readonly}
-		<span class="ml-2 text-sm text-muted-foreground">
+		<span class="ml-2 text-sm text-muted-foreground" aria-hidden="true">
 			{displayRating.toFixed(1)}
 		</span>
 	{/if}
 	{#if readonly && value > 0}
-		<span class="ml-2 text-sm font-medium">
+		<span class="ml-2 text-sm font-medium" aria-hidden="true">
 			{value.toFixed(1)}
 		</span>
 	{/if}

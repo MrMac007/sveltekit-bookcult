@@ -3,6 +3,12 @@ import type { RequestEvent } from '@sveltejs/kit'
 import { generateBookRecommendations, type BookRecommendation } from '$lib/ai/gemini'
 import { searchBooks } from '$lib/api/book-cache'
 import type { Recommendation, RecommendationsResponse } from '$lib/types/recommendations'
+import { getReliableCoverUrl } from '$lib/utils/covers'
+import {
+	RECOMMENDATIONS_CACHE_DAYS,
+	MIN_AUTO_REFRESH_DAYS,
+	WISHLIST_ADDS_THRESHOLD
+} from '$lib/constants'
 
 interface RecommendationsCache {
   recommendations: Recommendation[]
@@ -37,39 +43,6 @@ interface ListItemWithBook {
   books: BookIdentifiers | null
 }
 
-const CACHE_DURATION_DAYS = 5
-const MIN_AUTO_REFRESH_DAYS = 7
-const WISHLIST_ADDS_THRESHOLD = 3
-const COVERS_API_URL = 'https://covers.openlibrary.org'
-
-/**
- * Generate a reliable cover URL, preferring the original cover_url (from cover_i)
- * over ISBN-based URLs since cover_i is more reliable for having actual covers
- */
-function getReliableCoverUrl(rec: Recommendation): string | undefined {
-  // First, try to use the stored cover_url (from cover_i during search)
-  // This is the most reliable source since Open Library marks these as having covers
-  if (rec.cover_url && rec.cover_url.includes('covers.openlibrary.org')) {
-    // Ensure it has ?default=false to get 404 instead of transparent pixel
-    if (rec.cover_url.includes('?default=false')) {
-      return rec.cover_url
-    }
-    // Add ?default=false if missing
-    return rec.cover_url.includes('?')
-      ? rec.cover_url + '&default=false'
-      : rec.cover_url + '?default=false'
-  }
-
-  // Fall back to ISBN-based URLs only if no cover_url exists
-  if (rec.isbn_13) {
-    return `${COVERS_API_URL}/b/isbn/${rec.isbn_13}-M.jpg?default=false`
-  }
-  if (rec.isbn_10) {
-    return `${COVERS_API_URL}/b/isbn/${rec.isbn_10}-M.jpg?default=false`
-  }
-
-  return undefined
-}
 
 /**
  * Process cached recommendations to ensure cover URLs are reliable
@@ -367,7 +340,7 @@ async function cacheRecommendations(
 ) {
   const db = supabase as any // Type assertion for Supabase queries
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000)
+  const expiresAt = new Date(now.getTime() + RECOMMENDATIONS_CACHE_DAYS * 24 * 60 * 60 * 1000)
 
   const { data: existingCache } = await db
     .from('recommendations_cache')

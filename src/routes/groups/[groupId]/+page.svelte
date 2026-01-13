@@ -9,7 +9,23 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	const pageTitle = `${data.group.name} - BookCult`;
+	const pageDescription = data.group.description
+		? data.group.description.slice(0, 160) + (data.group.description.length > 160 ? '...' : '')
+		: `${data.group.name} book club on BookCult. ${data.members.length} members.`;
 </script>
+
+<svelte:head>
+	<title>{pageTitle}</title>
+	<meta name="description" content={pageDescription} />
+	<meta property="og:title" content={data.group.name} />
+	<meta property="og:description" content={pageDescription} />
+	<meta property="og:type" content="website" />
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:title" content={data.group.name} />
+	<meta name="twitter:description" content={pageDescription} />
+</svelte:head>
 
 <AppLayout title={data.group.name} showLogo={false}>
 	<div class="mx-auto max-w-5xl px-4 py-6">

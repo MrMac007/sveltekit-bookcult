@@ -8,8 +8,14 @@
  * This helps us return the "main" version users expect rather than random editions.
  */
 
-const OPEN_LIBRARY_API_URL = 'https://openlibrary.org';
-const COVERS_API_URL = 'https://covers.openlibrary.org';
+import {
+	OPEN_LIBRARY_API_URL,
+	API_TIMEOUT_MS,
+	MAX_RETRIES,
+	INITIAL_RETRY_DELAY_MS,
+	MAX_CONCURRENT_REQUESTS
+} from '$lib/constants';
+import { getCoverUrlById, buildCoverUrl } from '$lib/utils/covers';
 
 // UK publishers to prioritize for best edition selection
 const UK_PUBLISHERS = [
@@ -57,6 +63,97 @@ const QUALITY_PUBLISHERS = [
 	'little, brown',
 	'hachette'
 ];
+
+
+/**
+ * Execute promises with limited concurrency to avoid overwhelming external APIs.
+ * Processes items in batches of `concurrency` at a time.
+ */
+async function throttlePromises<T, R>(
+	items: T[],
+	fn: (item: T) => Promise<R>,
+	concurrency: number = MAX_CONCURRENT_REQUESTS
+): Promise<R[]> {
+	const results: R[] = [];
+
+	for (let i = 0; i < items.length; i += concurrency) {
+		const batch = items.slice(i, i + concurrency);
+		const batchResults = await Promise.all(batch.map(fn));
+		results.push(...batchResults);
+	}
+
+	return results;
+}
+
+/**
+ * Fetch with retry logic, timeout, and rate limit handling
+ */
+async function fetchWithRetry(
+	url: string,
+	options: RequestInit = {},
+	retries = MAX_RETRIES
+): Promise<Response> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+	const fetchOptions: RequestInit = {
+		...options,
+		signal: controller.signal,
+		headers: {
+			'User-Agent': 'BookCult/1.0 (book-tracking-app)',
+			...options.headers
+		}
+	};
+
+	try {
+		const response = await fetch(url, fetchOptions);
+		clearTimeout(timeoutId);
+
+		// Handle rate limiting
+		if (response.status === 429) {
+			const retryAfter = response.headers.get('Retry-After');
+			const delayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : INITIAL_RETRY_DELAY_MS;
+
+			if (retries > 0) {
+				console.warn(`[OpenLibrary] Rate limited, retrying after ${delayMs}ms...`);
+				await new Promise(resolve => setTimeout(resolve, delayMs));
+				return fetchWithRetry(url, options, retries - 1);
+			}
+			throw new Error('Rate limit exceeded after retries');
+		}
+
+		// Retry on server errors (5xx)
+		if (!response.ok && response.status >= 500 && retries > 0) {
+			const delay = INITIAL_RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
+			console.warn(`[OpenLibrary] Server error ${response.status}, retrying in ${delay}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delay));
+			return fetchWithRetry(url, options, retries - 1);
+		}
+
+		return response;
+	} catch (error) {
+		clearTimeout(timeoutId);
+
+		// Handle timeout/abort
+		if (error instanceof Error && error.name === 'AbortError') {
+			if (retries > 0) {
+				console.warn('[OpenLibrary] Request timeout, retrying...');
+				return fetchWithRetry(url, options, retries - 1);
+			}
+			throw new Error('Request timeout after retries');
+		}
+
+		// Retry on network errors
+		if (retries > 0) {
+			const delay = INITIAL_RETRY_DELAY_MS * (MAX_RETRIES - retries + 1);
+			console.warn(`[OpenLibrary] Network error, retrying in ${delay}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delay));
+			return fetchWithRetry(url, options, retries - 1);
+		}
+
+		throw error;
+	}
+}
 
 export interface OpenLibrarySearchDoc {
 	key: string; // e.g., "/works/OL45804W"
@@ -159,18 +256,14 @@ function getTextValue(field: string | { type: string; value: string } | undefine
 }
 
 /**
- * Get cover URL from Open Library cover ID
- * Adding ?default=false makes Open Library return 404 for missing covers
- * instead of a 1x1 transparent pixel (which doesn't trigger onerror)
+ * Get cover URL from Open Library cover ID (delegates to shared utility)
  */
 function getCoverUrl(coverId: number | undefined, size: 'S' | 'M' | 'L' = 'M'): string | undefined {
-	if (!coverId) return undefined;
-	return `${COVERS_API_URL}/b/id/${coverId}-${size}.jpg?default=false`;
+	return getCoverUrlById(coverId, size);
 }
 
 /**
- * Get fallback cover URL using cover_edition_key or ISBN when cover_i is not available
- * Note: OLID covers only work with Edition IDs (OL...M), not Work keys (OL...W)
+ * Get fallback cover URL using cover_edition_key or ISBN (delegates to shared utility)
  */
 function getFallbackCoverUrl(
 	coverEditionKey?: string,
@@ -178,17 +271,7 @@ function getFallbackCoverUrl(
 	isbn10?: string,
 	size: 'S' | 'M' | 'L' = 'M'
 ): string | undefined {
-	// cover_edition_key is an edition OLID that has a cover - most reliable fallback
-	if (coverEditionKey) {
-		return `${COVERS_API_URL}/b/olid/${coverEditionKey}-${size}.jpg?default=false`;
-	}
-	if (isbn13) {
-		return `${COVERS_API_URL}/b/isbn/${isbn13}-${size}.jpg?default=false`;
-	}
-	if (isbn10) {
-		return `${COVERS_API_URL}/b/isbn/${isbn10}-${size}.jpg?default=false`;
-	}
-	return undefined;
+	return buildCoverUrl({ coverEditionKey, isbn13, isbn10, size });
 }
 
 /**
@@ -445,11 +528,7 @@ export class OpenLibraryAPI {
 		// Instead, let Open Library return relevance-sorted results, then apply our own scoring
 		// which balances title match, popularity, and series detection
 
-		const response = await fetch(url.toString(), {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url.toString());
 
 		if (!response.ok) {
 			throw new Error(`Open Library API error: ${response.statusText}`);
@@ -466,11 +545,7 @@ export class OpenLibraryAPI {
 		const key = extractKeyId(workKey);
 		const url = `${OPEN_LIBRARY_API_URL}/works/${key}.json`;
 
-		const response = await fetch(url, {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url);
 
 		if (!response.ok) {
 			throw new Error(`Open Library API error: ${response.statusText}`);
@@ -486,11 +561,7 @@ export class OpenLibraryAPI {
 		const key = extractKeyId(authorKey);
 		const url = `${OPEN_LIBRARY_API_URL}/authors/${key}.json`;
 
-		const response = await fetch(url, {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url);
 
 		if (!response.ok) {
 			throw new Error(`Open Library API error: ${response.statusText}`);
@@ -517,11 +588,7 @@ export class OpenLibraryAPI {
 		const key = extractKeyId(workKey);
 		const url = `${OPEN_LIBRARY_API_URL}/works/${key}/editions.json?limit=30`;
 
-		const response = await fetch(url, {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url);
 
 		if (!response.ok) {
 			return [];
@@ -540,7 +607,7 @@ export class OpenLibraryAPI {
 				return {
 					key: extractKeyId(edition.key),
 					title: edition.title,
-					cover_url: coverId ? `${COVERS_API_URL}/b/id/${coverId}-M.jpg?default=false` : undefined,
+					cover_url: getCoverUrlById(coverId),
 					cover_id: coverId,
 					publisher: edition.publishers?.[0],
 					publish_date: edition.publish_date,
@@ -570,11 +637,7 @@ export class OpenLibraryAPI {
 		const key = extractKeyId(workKey);
 		const url = `${OPEN_LIBRARY_API_URL}/works/${key}/editions.json?limit=10`;
 
-		const response = await fetch(url, {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url);
 
 		if (!response.ok) {
 			return null;
@@ -625,11 +688,7 @@ export class OpenLibraryAPI {
 		const key = extractKeyId(workKey);
 		const url = `${OPEN_LIBRARY_API_URL}/works/${key}/editions.json?limit=50`;
 
-		const response = await fetch(url, {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url);
 
 		if (!response.ok) {
 			return null;
@@ -651,14 +710,14 @@ export class OpenLibraryAPI {
 
 		if (scoredEditions.length > 0) {
 			const best = scoredEditions[0].edition;
-			const coverUrl = `${COVERS_API_URL}/b/id/${best.covers![0]}-M.jpg?default=false`;
+			const coverUrl = getCoverUrlById(best.covers![0])!;
 			return { edition: best, coverUrl };
 		}
 
 		// Fallback: return first edition with any cover
 		const withCover = editions.find((e) => e.covers?.[0] && e.covers[0] > 0);
 		if (withCover) {
-			const coverUrl = `${COVERS_API_URL}/b/id/${withCover.covers![0]}-M.jpg?default=false`;
+			const coverUrl = getCoverUrlById(withCover.covers![0])!;
 			return { edition: withCover, coverUrl };
 		}
 
@@ -673,11 +732,7 @@ export class OpenLibraryAPI {
 		url.searchParams.set('isbn', isbn);
 		url.searchParams.set('limit', '1');
 
-		const response = await fetch(url.toString(), {
-			headers: {
-				'User-Agent': 'BookCult/1.0 (book-tracking-app)'
-			}
-		});
+		const response = await fetchWithRetry(url.toString());
 
 		if (!response.ok) {
 			throw new Error(`Open Library API error: ${response.statusText}`);
@@ -886,8 +941,10 @@ export class OpenLibraryAPI {
 
 		// Fetch UK-preferred covers for better consistency (especially for series)
 		// This replaces the default covers with preferred UK publisher editions
-		const resultsWithUKCovers = await Promise.all(
-			topResults.map(async (book) => {
+		// Throttle to MAX_CONCURRENT_REQUESTS at a time to avoid overwhelming Open Library
+		const resultsWithUKCovers = await throttlePromises(
+			topResults,
+			async (book) => {
 				try {
 					const ukEdition = await this.getBestEditionForUK(book.open_library_key);
 					if (ukEdition?.coverUrl) {
@@ -897,7 +954,7 @@ export class OpenLibraryAPI {
 					// Silently fall back to original cover on error
 				}
 				return book;
-			})
+			}
 		);
 
 		return resultsWithUKCovers;

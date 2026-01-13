@@ -3,7 +3,8 @@
  * Uses work-level deduplication (work IDs like "OL12345W")
  */
 
-const OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json';
+import { buildCoverUrl } from '$lib/utils/covers';
+import { OPEN_LIBRARY_SEARCH_URL } from '$lib/constants';
 
 export interface SearchResult {
 	workKey: string; // "OL12345W" - primary identifier
@@ -115,26 +116,18 @@ function normalizeSearchDoc(doc: OpenLibrarySearchDoc): SearchResult | null {
 
 /**
  * Get the best cover URL for a search result
- * Uses Open Library's cover service with ?default=false to get 404 for missing covers
+ * Uses consolidated cover URL utility
  */
 function getCoverUrl(doc: OpenLibrarySearchDoc): string | null {
-	// Prefer cover_i (direct cover ID) - most reliable
-	if (doc.cover_i) {
-		return `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg?default=false`;
-	}
+	const isbn13 = doc.isbn?.find((i) => i.length === 13);
+	const isbn10 = doc.isbn?.find((i) => i.length === 10) || doc.isbn?.[0];
 
-	// Fall back to cover_edition_key (OLID)
-	if (doc.cover_edition_key) {
-		return `https://covers.openlibrary.org/b/olid/${doc.cover_edition_key}-M.jpg?default=false`;
-	}
-
-	// Fall back to ISBN
-	if (doc.isbn?.length) {
-		const isbn = doc.isbn.find((i) => i.length === 13) || doc.isbn[0];
-		return `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`;
-	}
-
-	return null;
+	return buildCoverUrl({
+		coverId: doc.cover_i,
+		coverEditionKey: doc.cover_edition_key,
+		isbn13,
+		isbn10
+	}) ?? null;
 }
 
 /**

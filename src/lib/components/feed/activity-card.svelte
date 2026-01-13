@@ -12,47 +12,28 @@
 
 	let { activity, compact = false }: Props = $props();
 
-	function getActivityIcon(): { icon: ComponentType; className: string } {
-		switch (activity.activity_type) {
-			case 'wishlist_add':
-				return { icon: BookMarked, className: 'h-5 w-5 text-blue-500' };
-			case 'book_complete':
-				return { icon: BookCheck, className: 'h-5 w-5 text-green-500' };
-			case 'rating_create':
-			case 'rating_update':
-				return { icon: Star, className: 'h-5 w-5 text-yellow-500 fill-yellow-500' };
-			case 'group_book_add':
-				return { icon: Users, className: 'h-5 w-5 text-purple-500' };
-			case 'reading_started':
-			default:
-				return { icon: BookOpen, className: 'h-5 w-5 text-orange-500' };
-		}
-	}
+	// Consolidated activity type configuration
+	const ACTIVITY_CONFIG: Record<string, { icon: ComponentType; className: string; text: string }> = {
+		wishlist_add: { icon: BookMarked, className: 'h-5 w-5 text-blue-500', text: 'added to wishlist' },
+		book_complete: { icon: BookCheck, className: 'h-5 w-5 text-green-500', text: 'completed' },
+		rating_create: { icon: Star, className: 'h-5 w-5 text-yellow-500 fill-yellow-500', text: 'rated' },
+		rating_update: { icon: Star, className: 'h-5 w-5 text-yellow-500 fill-yellow-500', text: 'updated rating for' },
+		group_book_add: { icon: Users, className: 'h-5 w-5 text-purple-500', text: 'added to group reading list' },
+		reading_started: { icon: BookOpen, className: 'h-5 w-5 text-orange-500', text: 'started reading' }
+	};
 
-	function getActivityText() {
-		switch (activity.activity_type) {
-			case 'wishlist_add':
-				return 'added to wishlist';
-			case 'book_complete':
-				return 'completed';
-			case 'rating_create':
-				return 'rated';
-			case 'rating_update':
-				return 'updated rating for';
-			case 'group_book_add':
-				return activity.metadata?.group_name
-					? `added to ${activity.metadata.group_name}'s reading list`
-					: 'added to group reading list';
-			case 'reading_started':
-				return 'started reading';
-			default:
-				return 'updated';
-		}
-	}
+	const DEFAULT_CONFIG = { icon: BookOpen, className: 'h-5 w-5 text-orange-500', text: 'updated' };
+
+	const config = ACTIVITY_CONFIG[activity.activity_type] || DEFAULT_CONFIG;
+
+	// Special case for group_book_add with group name
+	const activityText = activity.activity_type === 'group_book_add' && activity.metadata?.group_name
+		? `added to ${activity.metadata.group_name}'s reading list`
+		: config.text;
 
 	const metadata = activity.metadata || {};
 	const profile = activity.profiles;
-	const iconInfo = getActivityIcon();
+	const iconInfo = { icon: config.icon, className: config.className };
 </script>
 
 {#if compact}
@@ -70,7 +51,7 @@
 				{:else}
 					<span class="text-sm font-medium">Unknown user</span>
 				{/if}
-				<span class="text-sm text-muted-foreground">{getActivityText()}</span>
+				<span class="text-sm text-muted-foreground">{activityText}</span>
 				<span class="text-xs text-muted-foreground">• {formatRelativeTime(activity.created_at)}</span>
 			</div>
 
@@ -110,7 +91,7 @@
 						{:else}
 							<span class="font-medium">Unknown user</span>
 						{/if}
-						<span class="text-sm text-muted-foreground">{getActivityText()}</span>
+						<span class="text-sm text-muted-foreground">{activityText}</span>
 						<span class="text-xs text-muted-foreground">• {formatRelativeTime(activity.created_at)}</span>
 					</div>
 

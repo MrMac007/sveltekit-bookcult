@@ -83,11 +83,41 @@ $effect(() => {
 		if (!currentBook || isInWishlist) return;
 		onAddToWishlist(currentBook.open_library_key);
 	}
+
+	function handleKeyDown(e: KeyboardEvent) {
+		if (!books.length) return;
+
+		switch (e.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				e.preventDefault();
+				currentIndex = (currentIndex + 1) % books.length;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				e.preventDefault();
+				currentIndex = (currentIndex - 1 + books.length) % books.length;
+				break;
+			case 'Home':
+				e.preventDefault();
+				currentIndex = 0;
+				break;
+			case 'End':
+				e.preventDefault();
+				currentIndex = books.length - 1;
+				break;
+		}
+	}
 </script>
 
 {#if currentBook}
 	<div
 		class="relative"
+		role="region"
+		aria-label="Book recommendations carousel"
+		aria-roledescription="carousel"
+		tabindex="0"
+		onkeydown={handleKeyDown}
 		ontouchstart={handleTouchStart}
 		ontouchmove={handleTouchMove}
 		ontouchend={handleTouchEnd}

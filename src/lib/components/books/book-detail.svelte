@@ -4,6 +4,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Star, Sparkles, Loader2, Tag, Calendar } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
 	import { StarRating } from '$lib/components/ui/star-rating';
 	import BookActions from './book-actions.svelte';
 	import BookCover from '$lib/components/ui/book-cover.svelte';
@@ -74,14 +75,15 @@
 			});
 			const result = await response.json();
 			if (response.ok && result.success) {
-				window.location.reload();
+				toast.success('Book enhanced with AI');
+				await invalidateAll();
 			} else {
 				console.error('Enhance error:', result.error);
-				alert(result.error || 'Failed to enhance book');
+				toast.error(result.error || 'Failed to enhance book');
 			}
 		} catch (error) {
 			console.error('Error enhancing book:', error);
-			alert('An unexpected error occurred. Please try again.');
+			toast.error('An unexpected error occurred. Please try again.');
 		} finally {
 			isEnhancing = false;
 		}
