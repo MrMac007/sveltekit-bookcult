@@ -64,7 +64,11 @@ export const GET: RequestHandler = async (event) => {
 		// Limit final results
 		const finalResults = mergedResults.slice(0, limit);
 
-		return json({ results: finalResults, total: finalResults.length });
+		return json({ results: finalResults, total: finalResults.length }, {
+			headers: {
+				'Cache-Control': 'public, max-age=300, stale-while-revalidate=600'
+			}
+		});
 	} catch (error) {
 		console.error('Book search error:', error);
 		return json({ error: 'Failed to search books' }, { status: 500 });

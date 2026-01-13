@@ -7,23 +7,136 @@ import { createClient } from '$lib/supabase/server'
 import { redirect, type RequestEvent } from '@sveltejs/kit'
 import { findOrCreateBook } from '$lib/api/book-helpers'
 import type { BookCardData } from '$lib/types/api'
+import { isDuplicateKeyError } from '$lib/utils/postgres-errors'
+
+// ================== INTERNAL HELPERS ==================
+// Core operations that work with (db, userId, bookId)
+
+async function _addToWishlist(db: any, userId: string, bookId: string) {
+  const { error } = await db.from('wishlists').insert({
+    user_id: userId,
+    book_id: bookId,
+  })
+
+  if (error) {
+    if (isDuplicateKeyError(error)) {
+      return { success: true, message: 'Book already in wishlist' }
+    }
+    throw error
+  }
+
+  return { success: true, message: 'Added to wishlist!' }
+}
+
+async function _removeFromWishlist(db: any, userId: string, bookId: string) {
+  const { error } = await db
+    .from('wishlists')
+    .delete()
+    .eq('user_id', userId)
+    .eq('book_id', bookId)
+
+  if (error) throw error
+
+  return { success: true, message: 'Removed from wishlist' }
+}
+
+async function _startReading(db: any, userId: string, bookId: string, groupId: string | null = null) {
+  const { error } = await db.from('currently_reading').insert({
+    user_id: userId,
+    book_id: bookId,
+    group_id: groupId,
+  })
+
+  if (error) {
+    if (isDuplicateKeyError(error)) {
+      return { success: true, message: 'Already reading this book' }
+    }
+    throw error
+  }
+
+  return { success: true, message: 'Started reading!' }
+}
+
+async function _stopReading(db: any, userId: string, bookId: string) {
+  const { error } = await db
+    .from('currently_reading')
+    .delete()
+    .eq('user_id', userId)
+    .eq('book_id', bookId)
+
+  if (error) throw error
+
+  return { success: true, message: 'Stopped reading' }
+}
+
+async function _markComplete(db: any, userId: string, bookId: string) {
+  // Check if already completed
+  const { data: existing } = await db
+    .from('completed_books')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('book_id', bookId)
+    .single()
+
+  if (existing) {
+    throw redirect(303, `/rate/${bookId}`)
+  }
+
+  // Remove from wishlist and currently reading
+  await Promise.all([
+    db.from('wishlists').delete().eq('user_id', userId).eq('book_id', bookId),
+    db.from('currently_reading').delete().eq('user_id', userId).eq('book_id', bookId),
+  ])
+
+  // Add to completed books
+  const { error } = await db.from('completed_books').insert({
+    user_id: userId,
+    book_id: bookId,
+  })
+
+  if (error) throw error
+
+  throw redirect(303, `/rate/${bookId}`)
+}
+
+// ================== HELPER UTILITIES ==================
+
+async function getAuthenticatedUser(event: RequestEvent) {
+  const supabase = createClient(event)
+  const db = supabase as any // Type assertion needed for Supabase relational queries
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  return { supabase, db, user }
+}
+
+function parseBookData(formData: FormData): BookCardData | null {
+  try {
+    return JSON.parse(formData.get('bookData') as string) as BookCardData
+  } catch {
+    return null
+  }
+}
+
+// ================== PUBLIC FORM-BASED ACTIONS ==================
+// These work with form data containing bookData JSON
 
 /**
  * Add a book to the user's wishlist
  */
 export async function addToWishlist(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
   const formData = await event.request.formData()
-  const bookData = JSON.parse(formData.get('bookData') as string) as BookCardData
+  const bookData = parseBookData(formData)
+  if (!bookData) {
+    return { success: false, error: 'Invalid book data' }
+  }
 
   try {
     const bookId = await findOrCreateBook(bookData, supabase)
@@ -31,20 +144,7 @@ export async function addToWishlist(event: RequestEvent) {
       return { success: false, error: 'Failed to create book' }
     }
 
-    const { error } = await db.from('wishlists').insert({
-      user_id: user.id,
-      book_id: bookId,
-    })
-
-    if (error) {
-      // Handle unique constraint violation
-      if (error.code === '23505') {
-        return { success: true, message: 'Book already in wishlist' }
-      }
-      throw error
-    }
-
-    return { success: true, message: 'Added to wishlist!' }
+    return await _addToWishlist(db, user.id, bookId)
   } catch (error) {
     console.error('Error adding to wishlist:', error)
     return { success: false, error: 'Failed to add to wishlist' }
@@ -55,11 +155,7 @@ export async function addToWishlist(event: RequestEvent) {
  * Remove a book from the user's wishlist
  */
 export async function removeFromWishlist(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
@@ -69,15 +165,7 @@ export async function removeFromWishlist(event: RequestEvent) {
   const bookId = formData.get('bookId') as string
 
   try {
-    const { error } = await db
-      .from('wishlists')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    if (error) throw error
-
-    return { success: true, message: 'Removed from wishlist' }
+    return await _removeFromWishlist(db, user.id, bookId)
   } catch (error) {
     console.error('Error removing from wishlist:', error)
     return { success: false, error: 'Failed to remove from wishlist' }
@@ -88,18 +176,17 @@ export async function removeFromWishlist(event: RequestEvent) {
  * Mark a book as complete (redirects to rating page)
  */
 export async function markComplete(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
   const formData = await event.request.formData()
-  const bookData = JSON.parse(formData.get('bookData') as string) as BookCardData
+  const bookData = parseBookData(formData)
+  if (!bookData) {
+    return { success: false, error: 'Invalid book data' }
+  }
 
   try {
     const bookId = await findOrCreateBook(bookData, supabase)
@@ -107,39 +194,7 @@ export async function markComplete(event: RequestEvent) {
       return { success: false, error: 'Failed to create book' }
     }
 
-    // Check if already completed
-    const { data: existing } = await db
-      .from('completed_books')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-      .single()
-
-    if (existing) {
-      // Already completed, redirect to rate page
-      throw redirect(303, `/rate/${bookId}`)
-    }
-
-    // Remove from wishlist if it exists
-    await db.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId)
-
-    // Remove from currently reading if it exists
-    await db
-      .from('currently_reading')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    // Add to completed books
-    const { error } = await db.from('completed_books').insert({
-      user_id: user.id,
-      book_id: bookId,
-    })
-
-    if (error) throw error
-
-    // Redirect to rating page
-    throw redirect(303, `/rate/${bookId}`)
+    return await _markComplete(db, user.id, bookId)
   } catch (error) {
     if (error instanceof Response) throw error // Re-throw redirects
     console.error('Error marking as complete:', error)
@@ -151,18 +206,17 @@ export async function markComplete(event: RequestEvent) {
  * Mark a book as currently reading
  */
 export async function startReading(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
   const formData = await event.request.formData()
-  const bookData = JSON.parse(formData.get('bookData') as string) as BookCardData
+  const bookData = parseBookData(formData)
+  if (!bookData) {
+    return { success: false, error: 'Invalid book data' }
+  }
   const groupId = formData.get('groupId') as string | null
 
   try {
@@ -171,21 +225,7 @@ export async function startReading(event: RequestEvent) {
       return { success: false, error: 'Failed to create book' }
     }
 
-    const { error } = await db.from('currently_reading').insert({
-      user_id: user.id,
-      book_id: bookId,
-      group_id: groupId || null,
-    })
-
-    if (error) {
-      // Handle unique constraint violation
-      if (error.code === '23505') {
-        return { success: true, message: 'Already reading this book' }
-      }
-      throw error
-    }
-
-    return { success: true, message: 'Started reading!' }
+    return await _startReading(db, user.id, bookId, groupId || null)
   } catch (error) {
     console.error('Error starting reading:', error)
     return { success: false, error: 'Failed to start reading' }
@@ -196,11 +236,7 @@ export async function startReading(event: RequestEvent) {
  * Stop reading a book (remove from currently reading)
  */
 export async function stopReading(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
@@ -210,56 +246,32 @@ export async function stopReading(event: RequestEvent) {
   const bookId = formData.get('bookId') as string
 
   try {
-    const { error } = await db
-      .from('currently_reading')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    if (error) throw error
-
-    return { success: true, message: 'Stopped reading' }
+    return await _stopReading(db, user.id, bookId)
   } catch (error) {
     console.error('Error stopping reading:', error)
     return { success: false, error: 'Failed to stop reading' }
   }
 }
 
-// ================== ACTIONS FOR BOOK DETAIL PAGE ==================
-// These versions work with bookId from route params instead of form data
+// ================== PUBLIC ID-BASED ACTIONS ==================
+// These work with bookId from route params (for book detail pages)
 
 /**
  * Add a book to wishlist using bookId from route params
  */
 export async function addToWishlistById(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const bookId = event.params.bookId
+  const bookId = event.params.bookId as string
 
   try {
-    const { error: insertError } = await db.from('wishlists').insert({
-      user_id: user.id,
-      book_id: bookId,
-    })
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        return { success: true, message: 'Already in wishlist' }
-      }
-      throw insertError
-    }
-
-    return { success: true, message: 'Added to wishlist!' }
-  } catch (err) {
-    console.error('Error adding to wishlist:', err)
+    return await _addToWishlist(db, user.id, bookId)
+  } catch (error) {
+    console.error('Error adding to wishlist:', error)
     return { success: false, error: 'Failed to add to wishlist' }
   }
 }
@@ -268,30 +280,18 @@ export async function addToWishlistById(event: RequestEvent) {
  * Remove a book from wishlist using bookId from route params
  */
 export async function removeFromWishlistById(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const bookId = event.params.bookId
+  const bookId = event.params.bookId as string
 
   try {
-    const { error } = await db
-      .from('wishlists')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    if (error) throw error
-
-    return { success: true, message: 'Removed from wishlist' }
-  } catch (err) {
-    console.error('Error removing from wishlist:', err)
+    return await _removeFromWishlist(db, user.id, bookId)
+  } catch (error) {
+    console.error('Error removing from wishlist:', error)
     return { success: false, error: 'Failed to remove from wishlist' }
   }
 }
@@ -300,34 +300,18 @@ export async function removeFromWishlistById(event: RequestEvent) {
  * Start reading a book using bookId from route params
  */
 export async function startReadingById(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const bookId = event.params.bookId
+  const bookId = event.params.bookId as string
 
   try {
-    const { error: insertError } = await db.from('currently_reading').insert({
-      user_id: user.id,
-      book_id: bookId,
-    })
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        return { success: true, message: 'Already in currently reading' }
-      }
-      throw insertError
-    }
-
-    return { success: true, message: 'Started reading!' }
-  } catch (err) {
-    console.error('Error starting reading:', err)
+    return await _startReading(db, user.id, bookId)
+  } catch (error) {
+    console.error('Error starting reading:', error)
     return { success: false, error: 'Failed to start reading' }
   }
 }
@@ -336,30 +320,18 @@ export async function startReadingById(event: RequestEvent) {
  * Stop reading a book using bookId from route params
  */
 export async function stopReadingById(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const bookId = event.params.bookId
+  const bookId = event.params.bookId as string
 
   try {
-    const { error } = await db
-      .from('currently_reading')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    if (error) throw error
-
-    return { success: true, message: 'Stopped reading' }
-  } catch (err) {
-    console.error('Error stopping reading:', err)
+    return await _stopReading(db, user.id, bookId)
+  } catch (error) {
+    console.error('Error stopping reading:', error)
     return { success: false, error: 'Failed to stop reading' }
   }
 }
@@ -368,59 +340,19 @@ export async function stopReadingById(event: RequestEvent) {
  * Mark book as complete using bookId from route params
  */
 export async function markCompleteById(event: RequestEvent) {
-  const supabase = createClient(event)
-  const db = supabase as any
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { db, user } = await getAuthenticatedUser(event)
 
   if (!user) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const bookId = event.params.bookId
+  const bookId = event.params.bookId as string
 
   try {
-    // Check if already completed
-    const { data: existing } = await db
-      .from('completed_books')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-      .single()
-
-    if (existing) {
-      // Already completed, redirect to rate page
-      throw redirect(303, `/rate/${bookId}`)
-    }
-
-    // Remove from wishlist if it exists
-    await db
-      .from('wishlists')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    // Remove from currently reading if it exists
-    await db
-      .from('currently_reading')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('book_id', bookId)
-
-    // Add to completed books
-    const { error: insertError } = await db.from('completed_books').insert({
-      user_id: user.id,
-      book_id: bookId,
-    })
-
-    if (insertError) throw insertError
-
-    // Redirect to rating page
-    throw redirect(303, `/rate/${bookId}`)
-  } catch (err) {
-    if (err instanceof Response) throw err // Re-throw redirects
-    console.error('Error marking as complete:', err)
+    return await _markComplete(db, user.id, bookId)
+  } catch (error) {
+    if (error instanceof Response) throw error // Re-throw redirects
+    console.error('Error marking as complete:', error)
     return { success: false, error: 'Failed to mark as complete' }
   }
 }

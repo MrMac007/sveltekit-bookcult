@@ -5,6 +5,7 @@
 
 import { createClient } from '$lib/supabase/server'
 import type { RequestEvent } from '@sveltejs/kit'
+import { isDuplicateKeyError } from '$lib/utils/postgres-errors'
 
 export interface CurrentlyReadingBook {
   id: string
@@ -43,7 +44,7 @@ export async function addToCurrentlyReading(
   groupId?: string | null
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -99,7 +100,7 @@ export async function addToCurrentlyReading(
 
     if (insertError) {
       // Handle unique constraint violation
-      if (insertError.code === '23505') {
+      if (isDuplicateKeyError(insertError)) {
         return { success: true }
       }
       throw insertError
@@ -120,7 +121,7 @@ export async function removeFromCurrentlyReading(
   bookId: string
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -155,7 +156,7 @@ export async function toggleCurrentlyReading(
   groupId?: string | null
 ): Promise<{ success?: boolean; error?: string; isReading?: boolean }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -197,7 +198,7 @@ export async function getCurrentlyReading(
   userId?: string
 ): Promise<{ data: CurrentlyReadingBook[]; error?: string }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -249,7 +250,7 @@ export async function isCurrentlyReading(
   userId?: string
 ): Promise<{ isReading: boolean; groupId?: string | null }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -288,7 +289,7 @@ export async function getMembersReading(
   bookId: string
 ): Promise<{ data: CurrentlyReadingMember[]; error?: string }> {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()

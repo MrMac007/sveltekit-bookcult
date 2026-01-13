@@ -1,8 +1,9 @@
-// @ts-nocheck
 import { openLibraryAPI } from './open-library';
 import type { Book } from '$lib/types/api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/types/database';
+
+type BookRow = Database['public']['Tables']['books']['Row'];
 
 const CACHE_EXPIRY_DAYS = 30;
 
@@ -24,6 +25,7 @@ export async function getOrFetchBook(
 	bookId: string,
 	supabase: SupabaseClient<Database>
 ): Promise<Book | null> {
+	const db = supabase as any; // Type assertion for Supabase queries
 	try {
 		// Fetch from Open Library
 		const olBook = await openLibraryAPI.getBookDetails(bookId);
@@ -33,49 +35,30 @@ export async function getOrFetchBook(
 		}
 		const book: any = { ...olBook };
 
-		// Try to find existing book by ISBN first (deduplication)
-		let existingBook = null;
+		// Try to find existing book by ISBN or Open Library key (parallel lookups)
+		const olKey = book.open_library_key || bookId;
+		const lookupPromises = await Promise.all([
+			book.isbn_13
+				? db.from('books').select('*').eq('isbn_13', book.isbn_13).maybeSingle()
+				: Promise.resolve({ data: null }),
+			book.isbn_10
+				? db.from('books').select('*').eq('isbn_10', book.isbn_10).maybeSingle()
+				: Promise.resolve({ data: null }),
+			db.from('books').select('*').eq('open_library_key', olKey).maybeSingle(),
+		]);
 
-		if (book.isbn_13) {
-			const { data } = await supabase
-				.from('books')
-				.select('*')
-				.eq('isbn_13', book.isbn_13)
-				.single();
+		const [isbn13Result, isbn10Result, olKeyResult] = lookupPromises;
 
-			if (data && !isStale(data.last_updated)) {
-				return data;
+		// Check results in order of preference (ISBN-13 > ISBN-10 > OL key)
+		// Return fresh data immediately if found
+		for (const result of [isbn13Result, isbn10Result, olKeyResult]) {
+			if (result.data && !isStale(result.data.last_updated)) {
+				return result.data;
 			}
-			existingBook = data;
 		}
 
-		if (!existingBook && book.isbn_10) {
-			const { data } = await supabase
-				.from('books')
-				.select('*')
-				.eq('isbn_10', book.isbn_10)
-				.single();
-
-			if (data && !isStale(data.last_updated)) {
-				return data;
-			}
-			existingBook = data;
-		}
-
-		// Check by Open Library key
-		if (!existingBook) {
-			const olKey = book.open_library_key || bookId;
-			const { data } = await supabase
-				.from('books')
-				.select('*')
-				.eq('open_library_key', olKey)
-				.single();
-
-			if (data && !isStale(data.last_updated)) {
-				return data;
-			}
-			existingBook = data;
-		}
+		// Use any existing book found (even if stale) for updating
+		const existingBook = isbn13Result.data || isbn10Result.data || olKeyResult.data;
 
 		// Remove temporary/computed fields that don't belong in the database
 		const {
@@ -97,7 +80,7 @@ export async function getOrFetchBook(
 		// If book exists, update it; otherwise insert new
 		if (existingBook) {
 			// Update existing book
-			const { data: updatedBook, error: updateError } = await supabase
+			const { data: updatedBook, error: updateError } = await db
 				.from('books')
 				.update({
 					...bookData,
@@ -120,7 +103,7 @@ export async function getOrFetchBook(
 				last_updated: new Date().toISOString()
 			};
 
-			const { data: insertedBook, error: insertError } = await supabase
+			const { data: insertedBook, error: insertError } = await db
 				.from('books')
 				.insert(insertData)
 				.select()
@@ -132,11 +115,11 @@ export async function getOrFetchBook(
 
 				// If insert failed due to duplicate, try to fetch the existing book
 				if (insertError.code === '23505') {
-					const { data: existingByKey } = await supabase
+					const { data: existingByKey } = await db
 						.from('books')
 						.select('*')
 						.eq('open_library_key', bookId)
-						.single();
+						.maybeSingle();
 
 					if (existingByKey) {
 						return existingByKey;
@@ -157,11 +140,11 @@ export async function getOrFetchBook(
 		console.error('Error fetching book from API:', error);
 
 		// If API fails, try to get from cache
-		const { data: cachedBook } = await supabase
+		const { data: cachedBook } = await db
 			.from('books')
 			.select('*')
 			.eq('open_library_key', bookId)
-			.single();
+			.maybeSingle();
 
 		return cachedBook || null;
 	}
@@ -179,8 +162,9 @@ export async function searchBooks(
 	supabase: SupabaseClient<Database>,
 	maxResults: number = 20
 ): Promise<Book[]> {
+	const db = supabase as any; // Type assertion for Supabase queries
 	// First, try full-text search in our cache
-	const { data: cachedBooks } = await supabase
+	const { data: cachedBooks } = await db
 		.from('books')
 		.select('*')
 		.textSearch('search_vector', query)
@@ -210,12 +194,13 @@ export async function getBookByISBN(
 	isbn: string,
 	supabase: SupabaseClient<Database>
 ): Promise<Book | null> {
+	const db = supabase as any; // Type assertion for Supabase queries
 	// Try to get from cache by ISBN
-	const { data: cachedBook } = await supabase
+	const { data: cachedBook } = await db
 		.from('books')
 		.select('*')
 		.or(`isbn_13.eq.${isbn},isbn_10.eq.${isbn}`)
-		.single();
+		.maybeSingle();
 
 	// If cached and not stale, return it
 	if (cachedBook && !isStale(cachedBook.last_updated)) {
@@ -233,7 +218,7 @@ export async function getBookByISBN(
 		const book = openLibraryAPI.normalizeSearchDoc(response.docs[0]);
 
 		// Update or insert in cache
-		const { data: upsertedBook } = await supabase
+		const { data: upsertedBook } = await db
 			.from('books')
 			.upsert(
 				{

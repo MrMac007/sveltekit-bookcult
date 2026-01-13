@@ -30,7 +30,11 @@ export const GET: RequestHandler = async (event) => {
     }
 
     if (book.id && isValidUUID(book.id)) {
-      return json(book)
+      return json(book, {
+        headers: {
+          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400'
+        }
+      })
     }
 
     // Try to find in database by Open Library key
@@ -50,6 +54,10 @@ export const GET: RequestHandler = async (event) => {
     return json({
       ...book,
       id: typedDbBook.id,
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400'
+      }
     })
   } catch (err) {
     console.error('[API] Error fetching book:', err)

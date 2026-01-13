@@ -24,19 +24,18 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	try {
-		const client = supabase as any;
-
+		const db = supabase as any; // Type assertion for Supabase relational queries
 		// Get all books the user has in any list, with their work keys
 		const [wishlistResult, readingResult, completedResult] = await Promise.all([
-			client
+			db
 				.from('wishlists')
 				.select('book_id, books(open_library_key)')
 				.eq('user_id', user.id),
-			client
+			db
 				.from('currently_reading')
 				.select('book_id, books(open_library_key)')
 				.eq('user_id', user.id),
-			client
+			db
 				.from('completed_books')
 				.select('book_id, books(open_library_key)')
 				.eq('user_id', user.id)
@@ -78,7 +77,11 @@ export const GET: RequestHandler = async (event) => {
 			status
 		}));
 
-		return json({ books });
+		return json({ books }, {
+			headers: {
+				'Cache-Control': 'private, max-age=10, stale-while-revalidate=30'
+			}
+		});
 	} catch (error) {
 		console.error('Error fetching user library:', error);
 		return json({ books: [] });

@@ -68,6 +68,7 @@
 				src={coverUrl}
 				alt="Cover of {title}"
 				class="h-full w-full object-cover"
+				loading="lazy"
 				onerror={handleImageError}
 			/>
 		{:else}

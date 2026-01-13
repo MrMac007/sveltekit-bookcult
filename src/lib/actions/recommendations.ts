@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from '$lib/supabase/server'
 import type { RequestEvent } from '@sveltejs/kit'
 import { generateBookRecommendations, type BookRecommendation } from '$lib/ai/gemini'
@@ -11,6 +10,31 @@ interface RecommendationsCache {
   expires_at: string
   wishlist_adds_since_generation: number
   last_auto_refresh_at?: string | null
+}
+
+// Type for the nested book data in relational queries
+interface BookIdentifiers {
+  id: string
+  open_library_key: string | null
+  google_books_id: string | null
+}
+
+// Type for rating query with book relation
+interface RatingWithBook {
+  rating: number
+  books: {
+    id: string
+    open_library_key: string | null
+    google_books_id: string | null
+    title: string
+    authors: string[]
+    categories: string[]
+  } | null
+}
+
+// Type for wishlist/completed query with book relation
+interface ListItemWithBook {
+  books: BookIdentifiers | null
 }
 
 const CACHE_DURATION_DAYS = 5
@@ -128,13 +152,14 @@ export async function getRecommendations(
 export async function trackWishlistAdd(event: RequestEvent, bookId: string): Promise<void> {
   try {
     const supabase = createClient(event)
+    const db = supabase as any // Type assertion for Supabase queries
 
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: cache } = await supabase
+    const { data: cache } = await db
       .from('recommendations_cache')
       .select('*')
       .eq('user_id', user.id)
@@ -147,7 +172,7 @@ export async function trackWishlistAdd(event: RequestEvent, bookId: string): Pro
 
     if (!wasRecommended) return
 
-    await supabase
+    await db
       .from('recommendations_cache')
       .update({
         wishlist_adds_since_generation: cache.wishlist_adds_since_generation + 1,
@@ -162,7 +187,8 @@ async function getValidCache(
   supabase: ReturnType<typeof createClient>,
   userId: string
 ): Promise<Recommendation[] | null> {
-  const { data: cache, error } = await supabase
+  const db = supabase as any // Type assertion for Supabase queries
+  const { data: cache, error } = await db
     .from('recommendations_cache')
     .select('*')
     .eq('user_id', userId)
@@ -195,7 +221,8 @@ async function generateNewRecommendations(
   supabase: ReturnType<typeof createClient>,
   userId: string
 ): Promise<Recommendation[]> {
-  const { count: highRatingCount, error: countError } = await supabase
+  const db = supabase as any // Type assertion for Supabase queries
+  const { count: highRatingCount, error: countError } = await db
     .from('ratings')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
@@ -210,7 +237,7 @@ async function generateNewRecommendations(
     return []
   }
 
-  const { data: ratings, error: ratingsError } = await supabase
+  const { data: ratings, error: ratingsError } = await db
     .from('ratings')
     .select('rating, books(id, open_library_key, google_books_id, title, authors, categories)')
     .eq('user_id', userId)
@@ -226,39 +253,42 @@ async function generateNewRecommendations(
   }
 
   // Filter out ratings where book data is missing
-  const validRatings = ratings.filter((r: any) => r.books?.title && r.books?.authors)
+  const validRatings = (ratings as RatingWithBook[]).filter(
+    (r): r is RatingWithBook & { books: NonNullable<RatingWithBook['books']> } =>
+      r.books !== null && Boolean(r.books.title) && Boolean(r.books.authors)
+  )
   if (validRatings.length < 3) {
     console.error('[Recommendations] Not enough valid rated books with complete data')
     return []
   }
 
   const [{ data: wishlistBooks }, { data: completedBooks }] = await Promise.all([
-    supabase.from('wishlists').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
-    supabase.from('completed_books').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
+    db.from('wishlists').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
+    db.from('completed_books').select('books(id, open_library_key, google_books_id)').eq('user_id', userId),
   ])
 
   // Collect all book identifiers to exclude (filter out null/undefined)
   const excludeIds = new Set<string>()
   for (const r of validRatings) {
-    const book = r.books as any
+    const book = r.books
+    if (book.id) excludeIds.add(book.id)
+    if (book.open_library_key) excludeIds.add(book.open_library_key)
+    if (book.google_books_id) excludeIds.add(book.google_books_id)
+  }
+  for (const w of (wishlistBooks || []) as ListItemWithBook[]) {
+    const book = w.books
     if (book?.id) excludeIds.add(book.id)
     if (book?.open_library_key) excludeIds.add(book.open_library_key)
     if (book?.google_books_id) excludeIds.add(book.google_books_id)
   }
-  for (const w of wishlistBooks || []) {
-    const book = (w as any).books
-    if (book?.id) excludeIds.add(book.id)
-    if (book?.open_library_key) excludeIds.add(book.open_library_key)
-    if (book?.google_books_id) excludeIds.add(book.google_books_id)
-  }
-  for (const c of completedBooks || []) {
-    const book = (c as any).books
+  for (const c of (completedBooks || []) as ListItemWithBook[]) {
+    const book = c.books
     if (book?.id) excludeIds.add(book.id)
     if (book?.open_library_key) excludeIds.add(book.open_library_key)
     if (book?.google_books_id) excludeIds.add(book.google_books_id)
   }
 
-  const topRatedBooks = validRatings.map((r: any) => ({
+  const topRatedBooks = validRatings.map((r) => ({
     title: r.books.title,
     authors: r.books.authors || [],
     categories: r.books.categories || [],
@@ -335,10 +365,11 @@ async function cacheRecommendations(
   userId: string,
   recommendations: Recommendation[]
 ) {
+  const db = supabase as any // Type assertion for Supabase queries
   const now = new Date()
   const expiresAt = new Date(now.getTime() + CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000)
 
-  const { data: existingCache } = await supabase
+  const { data: existingCache } = await db
     .from('recommendations_cache')
     .select('wishlist_adds_since_generation')
     .eq('user_id', userId)
@@ -347,7 +378,7 @@ async function cacheRecommendations(
   const isAutoRefresh =
     existingCache && existingCache.wishlist_adds_since_generation >= WISHLIST_ADDS_THRESHOLD
 
-  await supabase
+  await db
     .from('recommendations_cache')
     .upsert(
       {

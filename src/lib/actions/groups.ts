@@ -10,7 +10,7 @@ import { fail, type RequestEvent } from '@sveltejs/kit'
  */
 export async function removeMember(event: RequestEvent) {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -77,7 +77,7 @@ export async function removeMember(event: RequestEvent) {
  */
 export async function updateMemberRole(event: RequestEvent) {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -147,7 +147,7 @@ export async function updateMemberRole(event: RequestEvent) {
  */
 export async function setCurrentReadingBook(event: RequestEvent) {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -202,7 +202,7 @@ export async function setCurrentReadingBook(event: RequestEvent) {
  */
 export async function toggleGroupBookReading(event: RequestEvent) {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -270,7 +270,7 @@ export async function toggleGroupBookReading(event: RequestEvent) {
  */
 export async function reorderReadingList(event: RequestEvent) {
   const supabase = createClient(event)
-  const db = supabase as any
+  const db = supabase as any // Type assertion needed for Supabase relational queries
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -297,10 +297,12 @@ export async function reorderReadingList(event: RequestEvent) {
     }
 
     // Parse book orders: array of {groupBookId, displayOrder}
-    const bookOrders = JSON.parse(bookOrdersJson) as Array<{
-      groupBookId: string
-      displayOrder: number
-    }>
+    let bookOrders: Array<{ groupBookId: string; displayOrder: number }>
+    try {
+      bookOrders = JSON.parse(bookOrdersJson)
+    } catch {
+      return fail(400, { error: 'Invalid book order data' })
+    }
 
     // Update each book's display order
     for (const { groupBookId, displayOrder } of bookOrders) {

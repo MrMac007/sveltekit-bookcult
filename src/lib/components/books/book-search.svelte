@@ -19,6 +19,7 @@
 	let searchResults = $state<SearchResult[]>([]);
 	let isSearching = $state(false);
 	let hasSearched = $state(false);
+	let searchError = $state<string | null>(null);
 
 	// User library state - keyed by work key for O(1) lookup
 	let userLibrary = $state<Map<string, LibraryStatus>>(new Map());
@@ -80,11 +81,13 @@
 		if (!query) {
 			searchResults = [];
 			hasSearched = false;
+			searchError = null;
 			return;
 		}
 
 		isSearching = true;
 		hasSearched = true;
+		searchError = null;
 
 		try {
 			const response = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
@@ -97,6 +100,7 @@
 		} catch (error) {
 			console.error('Search error:', error);
 			searchResults = [];
+			searchError = 'Failed to search books. Please try again.';
 		} finally {
 			isSearching = false;
 		}
@@ -271,7 +275,14 @@
 		</div>
 	{/if}
 
-	{#if !isSearching && hasSearched && searchResults.length === 0}
+	{#if searchError}
+		<div class="py-8 text-center">
+			<p class="text-destructive">{searchError}</p>
+			<Button variant="outline" class="mt-4" onclick={performSearch}>
+				Try again
+			</Button>
+		</div>
+	{:else if !isSearching && hasSearched && searchResults.length === 0}
 		<div class="py-12 text-center">
 			<p class="text-muted-foreground">
 				No books found for "{searchQuery}". Try a different search term.

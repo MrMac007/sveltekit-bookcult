@@ -4,6 +4,7 @@ import type { PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async (event) => {
   const supabase = createClient(event)
+  const db = supabase as any // Type assertion for Supabase relational queries
 
   const {
     data: { user },
@@ -14,7 +15,7 @@ export const load: PageServerLoad = async (event) => {
   }
 
   // Get user's group memberships with group details
-  const { data: memberships, error } = await supabase
+  const { data: memberships, error } = await db
     .from('group_members')
     .select(
       `
@@ -34,18 +35,21 @@ export const load: PageServerLoad = async (event) => {
     console.error('Error fetching groups:', error)
   }
 
-  // Get member counts for each group
-  const groupIds = memberships?.map((m: any) => m.groups.id).filter(Boolean) || []
-  const { data: memberCounts } = await supabase
-    .from('group_members')
-    .select('group_id')
-    .in('group_id', groupIds.length > 0 ? groupIds : [''])
-
-  // Count members per group
+  // Get member counts for each group in a single query
+  const groupIds = memberships?.map((m: any) => m.groups?.id).filter(Boolean) || []
   const countsMap = new Map<string, number>()
-  memberCounts?.forEach((m: any) => {
-    countsMap.set(m.group_id, (countsMap.get(m.group_id) || 0) + 1)
-  })
+
+  if (groupIds.length > 0) {
+    const { data: memberRows } = await db
+      .from('group_members')
+      .select('group_id')
+      .in('group_id', groupIds)
+
+    // Count members per group client-side (single query, minimal data transfer)
+    memberRows?.forEach((row: { group_id: string }) => {
+      countsMap.set(row.group_id, (countsMap.get(row.group_id) || 0) + 1)
+    })
+  }
 
   // Transform data for component
   const groups =

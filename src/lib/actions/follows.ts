@@ -1,9 +1,10 @@
-// @ts-nocheck
 import { createClient } from '$lib/supabase/server'
 import type { RequestEvent } from '@sveltejs/kit'
+import { isDuplicateKeyError } from '$lib/utils/postgres-errors'
 
 export async function followUser(event: RequestEvent, targetUserId: string) {
   const supabase = createClient(event)
+  const db = supabase as any // Type assertion for Supabase queries
 
   const {
     data: { user },
@@ -18,23 +19,23 @@ export async function followUser(event: RequestEvent, targetUserId: string) {
     return { success: false, error: 'You cannot follow yourself' }
   }
 
-  const { data: targetUser, error: targetError } = await supabase
+  const { data: targetUser } = await db
     .from('profiles')
     .select('id')
     .eq('id', targetUserId)
-    .single()
+    .maybeSingle()
 
-  if (targetError || !targetUser) {
+  if (!targetUser) {
     return { success: false, error: 'User not found' }
   }
 
-  const { error } = await supabase.from('follows').insert({
+  const { error } = await db.from('follows').insert({
     follower_id: user.id,
     following_id: targetUserId,
   })
 
   if (error) {
-    if (error.code === '23505') {
+    if (isDuplicateKeyError(error)) {
       return { success: false, error: 'Already following this user' }
     }
     return { success: false, error: 'Failed to follow user' }
@@ -45,6 +46,7 @@ export async function followUser(event: RequestEvent, targetUserId: string) {
 
 export async function unfollowUser(event: RequestEvent, targetUserId: string) {
   const supabase = createClient(event)
+  const db = supabase as any // Type assertion for Supabase queries
 
   const {
     data: { user },
@@ -55,7 +57,7 @@ export async function unfollowUser(event: RequestEvent, targetUserId: string) {
     return { success: false, error: 'Not authenticated' }
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from('follows')
     .delete()
     .eq('follower_id', user.id)
