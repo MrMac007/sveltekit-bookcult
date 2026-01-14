@@ -1,6 +1,7 @@
 import { createClient } from '$lib/supabase/server'
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
+import { markComplete } from '$lib/actions/books'
 
 interface CurrentlyReadingItem {
   id: string
@@ -94,59 +95,6 @@ export const actions: Actions = {
 
     return { success: true }
   },
-  markComplete: async (event) => {
-    const supabase = createClient(event)
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw redirect(303, '/login')
-    }
-
-    const formData = await event.request.formData()
-    const bookId = formData.get('bookId')
-    const completedAt = formData.get('completedAt') as string | null
-
-    if (!bookId || typeof bookId !== 'string') {
-      return fail(400, { error: 'Missing book id' })
-    }
-
-    try {
-      const { data: existing } = await supabase
-        .from('completed_books')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('book_id', bookId)
-        .single()
-
-      if (existing) {
-        throw redirect(303, `/rate/${bookId}`)
-      }
-
-      await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId)
-      await supabase.from('currently_reading').delete().eq('user_id', user.id).eq('book_id', bookId)
-
-      // Add to completed books with date - always confirm since this flow goes through the dialog
-      const insertData: Record<string, unknown> = {
-        user_id: user.id,
-        book_id: bookId,
-        completed_at: completedAt || new Date().toISOString().split('T')[0],
-        date_confirmed: true
-      }
-
-      const { error: insertError } = await supabase.from('completed_books').insert(insertData as any)
-
-      if (insertError) {
-        throw insertError
-      }
-
-      throw redirect(303, `/rate/${bookId}`)
-    } catch (err) {
-      if (err instanceof Response) throw err
-      console.error('Error marking book complete:', err)
-      return fail(500, { error: 'Failed to mark book as complete' })
-    }
-  },
+  // Use unified action from lib/actions/books.ts
+  markComplete,
 }

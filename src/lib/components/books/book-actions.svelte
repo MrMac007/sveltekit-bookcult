@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createClient } from '$lib/supabase/client';
 	import { Button } from '$lib/components/ui/button';
 	import { BookMarked, BookOpen, BookCheck, Loader2 } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -30,8 +29,6 @@
 		layout = 'horizontal'
 	}: Props = $props();
 
-	const supabase = createClient();
-
 	let addingToWishlist = $state(false);
 	let togglingReading = $state(false);
 	let markingComplete = $state(false);
@@ -50,50 +47,27 @@
 	});
 
 	/**
-	 * Ensure book exists in database and return its database ID
+	 * Build API request body - handles both existing books (by UUID) and new books (by Open Library key)
 	 */
-	async function ensureBookInDb(): Promise<string | null> {
-		// If the book ID is already a UUID, it's in the database
+	function buildApiRequestBody(listType: 'wishlist' | 'reading' | 'completed', completedAt?: string) {
 		const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
+
 		if (isUUID) {
-			return book.id;
+			// Book already in DB, use bookId directly
+			return { bookId: book.id, listType, completedAt };
 		}
 
-		// Try to find by open_library_key first
-		if (book.open_library_key) {
-			const { data: existing } = await supabase
-				.from('books')
-				.select('id')
-				.eq('open_library_key', book.open_library_key)
-				.single();
-
-			if (existing) {
-				return (existing as { id: string }).id;
+		// New book - provide workKey + bookData for creation
+		return {
+			workKey: book.open_library_key || book.id,
+			listType,
+			completedAt,
+			bookData: {
+				title: book.title,
+				authors: book.authors || [],
+				coverUrl: book.cover_url || undefined
 			}
-		}
-
-		// Try to find by google_books_id (legacy support)
-		if (book.google_books_id) {
-			const { data: existing } = await supabase
-				.from('books')
-				.select('id')
-				.eq('google_books_id', book.google_books_id)
-				.single();
-
-			if (existing) {
-				return (existing as { id: string }).id;
-			}
-		}
-
-		// Fetch the book from our API to create it in the database (uses Open Library)
-		const bookKey = book.open_library_key || book.id;
-		const response = await fetch(`/api/books/fetch?id=${bookKey}`);
-		if (!response.ok) {
-			const payload = await response.json();
-			throw new Error(payload.error || 'Unable to fetch book');
-		}
-		const payload = await response.json();
-		return payload.id;
+		};
 	}
 
 	async function handleAddToWishlist() {
@@ -101,24 +75,16 @@
 
 		addingToWishlist = true;
 		try {
-			const dbBookId = await ensureBookInDb();
-			if (!dbBookId) {
-				throw new Error('Failed to find or create book');
-			}
+			const response = await fetch('/api/books/add', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(buildApiRequestBody('wishlist'))
+			});
 
-			const { error } = await supabase.from('wishlists').insert({
-				user_id: user.id,
-				book_id: dbBookId
-			} as any);
+			const result = await response.json();
 
-			if (error) {
-				if (error.code === '23505') {
-					// Already in wishlist
-					localIsInWishlist = true;
-					toast.info('Already in your wishlist');
-					return;
-				}
-				throw error;
+			if (!response.ok) {
+				throw new Error(result.error || 'Failed to add to wishlist');
 			}
 
 			localIsInWishlist = true;
@@ -137,37 +103,39 @@
 
 		togglingReading = true;
 		try {
-			const dbBookId = await ensureBookInDb();
-			if (!dbBookId) {
-				throw new Error('Failed to find or create book');
-			}
-
 			if (localIsCurrentlyReading) {
-				// Remove from currently reading
-				const { error } = await supabase
-					.from('currently_reading')
-					.delete()
-					.eq('user_id', user.id)
-					.eq('book_id', dbBookId);
+				// Remove from currently reading - need book ID
+				const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
+				if (!isUUID) {
+					throw new Error('Cannot stop reading a book not in database');
+				}
 
-				if (error) throw error;
+				const response = await fetch('/api/books/remove', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ bookId: book.id, listType: 'reading' })
+				});
+
+				const result = await response.json();
+
+				if (!response.ok) {
+					throw new Error(result.error || 'Failed to stop reading');
+				}
 
 				localIsCurrentlyReading = false;
 				toast.success('Stopped reading');
 			} else {
 				// Add to currently reading
-				const { error } = await supabase.from('currently_reading').insert({
-					user_id: user.id,
-					book_id: dbBookId
-				} as any);
+				const response = await fetch('/api/books/add', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(buildApiRequestBody('reading'))
+				});
 
-				if (error) {
-					if (error.code === '23505') {
-						localIsCurrentlyReading = true;
-						toast.info('Already reading this book');
-						return;
-					}
-					throw error;
+				const result = await response.json();
+
+				if (!response.ok) {
+					throw new Error(result.error || 'Failed to start reading');
 				}
 
 				localIsCurrentlyReading = true;
@@ -194,36 +162,16 @@
 		markingComplete = true;
 		showCompleteDialog = false;
 		try {
-			const dbBookId = await ensureBookInDb();
-			if (!dbBookId) {
-				throw new Error('Failed to find or create book');
-			}
+			const response = await fetch('/api/books/add', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(buildApiRequestBody('completed', completedAt))
+			});
 
-			// Remove from wishlist if present
-			await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', dbBookId);
+			const result = await response.json();
 
-			// Remove from currently reading if present
-			await supabase
-				.from('currently_reading')
-				.delete()
-				.eq('user_id', user.id)
-				.eq('book_id', dbBookId);
-
-			// Add to completed books with the selected date
-			const { error } = await supabase.from('completed_books').insert({
-				user_id: user.id,
-				book_id: dbBookId,
-				completed_at: completedAt,
-				date_confirmed: true
-			} as any);
-
-			if (error) {
-				if (error.code === '23505') {
-					// Already completed, redirect to rate
-					goto(`/rate/${dbBookId}`);
-					return;
-				}
-				throw error;
+			if (!response.ok) {
+				throw new Error(result.error || 'Failed to mark as complete');
 			}
 
 			localIsCompleted = true;
@@ -232,7 +180,7 @@
 			onStatusChange?.();
 
 			// Redirect to rating page
-			goto(`/rate/${dbBookId}`);
+			goto(`/rate/${result.bookId}`);
 		} catch (err) {
 			console.error('Error marking as complete:', err);
 			toast.error(err instanceof Error ? err.message : 'Failed to mark as complete');

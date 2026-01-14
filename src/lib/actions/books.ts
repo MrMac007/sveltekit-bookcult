@@ -69,7 +69,19 @@ async function _stopReading(db: any, userId: string, bookId: string) {
   return { success: true, message: 'Stopped reading' }
 }
 
-async function _markComplete(db: any, userId: string, bookId: string) {
+interface MarkCompleteResult {
+  success: boolean
+  bookId: string
+  alreadyCompleted?: boolean
+  error?: string
+}
+
+async function _markComplete(
+  db: any,
+  userId: string,
+  bookId: string,
+  completedAt?: string
+): Promise<MarkCompleteResult> {
   // Check if already completed
   const { data: existing } = await db
     .from('completed_books')
@@ -79,24 +91,28 @@ async function _markComplete(db: any, userId: string, bookId: string) {
     .single()
 
   if (existing) {
-    throw redirect(303, `/rate/${bookId}`)
+    return { success: true, bookId, alreadyCompleted: true }
   }
 
-  // Remove from wishlist and currently reading
+  // ALWAYS remove from wishlist and currently reading
   await Promise.all([
     db.from('wishlists').delete().eq('user_id', userId).eq('book_id', bookId),
     db.from('currently_reading').delete().eq('user_id', userId).eq('book_id', bookId),
   ])
 
-  // Add to completed books
+  // Add to completed books with ALWAYS confirmed date
   const { error } = await db.from('completed_books').insert({
     user_id: userId,
     book_id: bookId,
+    completed_at: completedAt || new Date().toISOString().split('T')[0],
+    date_confirmed: true,
   })
 
-  if (error) throw error
+  if (error) {
+    return { success: false, bookId, error: error.message }
+  }
 
-  throw redirect(303, `/rate/${bookId}`)
+  return { success: true, bookId }
 }
 
 // ================== HELPER UTILITIES ==================
@@ -174,6 +190,7 @@ export async function removeFromWishlist(event: RequestEvent) {
 
 /**
  * Mark a book as complete (redirects to rating page)
+ * Accepts either bookData JSON or bookId directly, plus optional completedAt date
  */
 export async function markComplete(event: RequestEvent) {
   const { supabase, db, user } = await getAuthenticatedUser(event)
@@ -183,18 +200,34 @@ export async function markComplete(event: RequestEvent) {
   }
 
   const formData = await event.request.formData()
-  const bookData = parseBookData(formData)
-  if (!bookData) {
-    return { success: false, error: 'Invalid book data' }
+  const completedAt = formData.get('completedAt') as string | null
+
+  // Support both bookData (from discover) and bookId (from wishlist/currently-reading)
+  let bookId: string
+  const bookIdFromForm = formData.get('bookId') as string | null
+
+  if (bookIdFromForm) {
+    bookId = bookIdFromForm
+  } else {
+    const bookData = parseBookData(formData)
+    if (!bookData) {
+      return { success: false, error: 'Invalid book data' }
+    }
+    const createdId = await findOrCreateBook(bookData, supabase)
+    if (!createdId) {
+      return { success: false, error: 'Failed to create book' }
+    }
+    bookId = createdId
   }
 
   try {
-    const bookId = await findOrCreateBook(bookData, supabase)
-    if (!bookId) {
-      return { success: false, error: 'Failed to create book' }
+    const result = await _markComplete(db, user.id, bookId, completedAt || undefined)
+
+    if (result.success) {
+      throw redirect(303, `/rate/${bookId}`)
     }
 
-    return await _markComplete(db, user.id, bookId)
+    return { success: false, error: result.error || 'Failed to mark as complete' }
   } catch (error) {
     if (error instanceof Response) throw error // Re-throw redirects
     console.error('Error marking as complete:', error)
@@ -349,10 +382,27 @@ export async function markCompleteById(event: RequestEvent) {
   const bookId = event.params.bookId as string
 
   try {
-    return await _markComplete(db, user.id, bookId)
+    const result = await _markComplete(db, user.id, bookId)
+
+    if (result.success) {
+      throw redirect(303, `/rate/${bookId}`)
+    }
+
+    return { success: false, error: result.error || 'Failed to mark as complete' }
   } catch (error) {
     if (error instanceof Response) throw error // Re-throw redirects
     console.error('Error marking as complete:', error)
     return { success: false, error: 'Failed to mark as complete' }
   }
+}
+
+// ================== EXPORTS FOR API USE ==================
+// Internal helpers exported for use in API routes
+
+export {
+  _addToWishlist as addToWishlistInternal,
+  _removeFromWishlist as removeFromWishlistInternal,
+  _startReading as startReadingInternal,
+  _stopReading as stopReadingInternal,
+  _markComplete as markCompleteInternal,
 }

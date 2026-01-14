@@ -1,16 +1,27 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '$lib/supabase/server';
+import {
+	addToWishlistInternal,
+	startReadingInternal,
+	markCompleteInternal
+} from '$lib/actions/books';
+
+interface BookData {
+	title: string;
+	authors: string[];
+	coverUrl?: string;
+	firstPublishYear?: number;
+}
 
 interface AddBookRequest {
-	workKey: string;
+	// Either provide bookId (if book already exists in DB)
+	bookId?: string;
+	// Or provide workKey + bookData to find/create book
+	workKey?: string;
+	bookData?: BookData;
 	listType: 'wishlist' | 'reading' | 'completed';
-	bookData: {
-		title: string;
-		authors: string[];
-		coverUrl?: string;
-		firstPublishYear?: number;
-	};
+	completedAt?: string; // Optional completion date for 'completed' listType
 }
 
 export const POST: RequestHandler = async (event) => {
@@ -32,23 +43,31 @@ export const POST: RequestHandler = async (event) => {
 		return json({ error: 'Invalid JSON body' }, { status: 400 });
 	}
 
-	const { workKey, listType, bookData } = body;
-
-	if (!workKey || !listType || !bookData?.title) {
-		return json({ error: 'Missing required fields: workKey, listType, bookData.title' }, { status: 400 });
-	}
+	const { bookId: providedBookId, workKey, listType, bookData, completedAt } = body;
 
 	// Validate listType
-	if (!['wishlist', 'reading', 'completed'].includes(listType)) {
+	if (!listType || !['wishlist', 'reading', 'completed'].includes(listType)) {
 		return json({ error: 'Invalid listType. Must be: wishlist, reading, or completed' }, { status: 400 });
 	}
 
-	try {
-		// Step 1: Get or create the book by work key
-		const bookId = await getOrCreateBook(workKey, bookData, supabase);
+	// Must provide either bookId OR (workKey + bookData)
+	if (!providedBookId && (!workKey || !bookData?.title)) {
+		return json({ error: 'Missing required fields: either bookId OR (workKey + bookData.title)' }, { status: 400 });
+	}
 
-		// Step 2: Add to the requested list
-		await addToList(user.id, bookId, listType, supabase);
+	try {
+		// Step 1: Get or create the book
+		let bookId: string;
+		if (providedBookId) {
+			// Book already exists in DB
+			bookId = providedBookId;
+		} else {
+			// Find/create book by work key
+			bookId = await getOrCreateBook(workKey!, bookData!, supabase);
+		}
+
+		// Step 2: Add to the requested list using unified internal helpers
+		await addToList(user.id, bookId, listType, supabase, completedAt);
 
 		return json({ success: true, bookId });
 	} catch (error) {
@@ -62,7 +81,7 @@ export const POST: RequestHandler = async (event) => {
  */
 async function getOrCreateBook(
 	workKey: string,
-	bookData: AddBookRequest['bookData'],
+	bookData: BookData,
 	supabase: ReturnType<typeof createClient>
 ): Promise<string> {
 	const client = supabase as any;
@@ -113,45 +132,33 @@ async function getOrCreateBook(
 }
 
 /**
- * Add book to user's list (wishlist, reading, or completed)
+ * Add book to user's list using unified internal helpers
+ * This ensures consistent behavior across all entry points
  */
 async function addToList(
 	userId: string,
 	bookId: string,
 	listType: 'wishlist' | 'reading' | 'completed',
-	supabase: ReturnType<typeof createClient>
+	supabase: ReturnType<typeof createClient>,
+	completedAt?: string
 ): Promise<void> {
-	const client = supabase as any;
+	const db = supabase as any;
 
-	const tableMap = {
-		wishlist: 'wishlists',
-		reading: 'currently_reading',
-		completed: 'completed_books'
-	} as const;
-
-	const table = tableMap[listType];
-
-	// Check if already in list
-	const { data: existing } = await client
-		.from(table)
-		.select('id')
-		.eq('user_id', userId)
-		.eq('book_id', bookId)
-		.single();
-
-	if (existing) {
-		// Already in list, nothing to do
-		return;
-	}
-
-	// Add to list
-	const { error } = await client.from(table).insert({
-		user_id: userId,
-		book_id: bookId
-	});
-
-	if (error && error.code !== '23505') {
-		// Ignore duplicate key error (race condition)
-		throw error;
+	switch (listType) {
+		case 'wishlist': {
+			const result = await addToWishlistInternal(db, userId, bookId);
+			if (!result.success) throw new Error(result.message || 'Failed to add to wishlist');
+			break;
+		}
+		case 'reading': {
+			const result = await startReadingInternal(db, userId, bookId);
+			if (!result.success) throw new Error(result.message || 'Failed to start reading');
+			break;
+		}
+		case 'completed': {
+			const result = await markCompleteInternal(db, userId, bookId, completedAt);
+			if (!result.success) throw new Error(result.error || 'Failed to mark complete');
+			break;
+		}
 	}
 }
