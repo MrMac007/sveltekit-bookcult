@@ -24,9 +24,13 @@
 	async function handleMarkComplete(completedAt: string) {
 		if (!selectedBook) return;
 
+		// Capture book ID and close dialog immediately to prevent date reset issues
+		const bookId = selectedBook.id;
+		showCompleteDialog = false;
 		isSubmitting = true;
+
 		const formData = new FormData();
-		formData.append('bookId', selectedBook.id);
+		formData.append('bookId', bookId);
 		formData.append('completedAt', completedAt);
 
 		const response = await fetch('?/markComplete', {
@@ -35,7 +39,6 @@
 		});
 
 		isSubmitting = false;
-		showCompleteDialog = false;
 
 		if (response.ok) {
 			const result = await response.json();

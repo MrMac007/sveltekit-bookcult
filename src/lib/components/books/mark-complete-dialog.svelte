@@ -31,13 +31,24 @@
 	}
 
 	let completionDate = $state(getTodayString());
+	let hasUserSelectedDate = $state(false);
 
-	// Reset date to today when dialog opens
+	// Reset date only when dialog opens fresh, preserve user selection during submission
 	$effect(() => {
 		if (open) {
-			completionDate = getTodayString();
+			// Only reset if this is a fresh open (user hasn't selected a date yet)
+			if (!hasUserSelectedDate) {
+				completionDate = getTodayString();
+			}
+		} else {
+			// Reset flag when dialog closes for next use
+			hasUserSelectedDate = false;
 		}
 	});
+
+	function handleDateChange() {
+		hasUserSelectedDate = true;
+	}
 
 	function handleConfirm() {
 		if (completionDate) {
@@ -79,6 +90,7 @@
 					id="completion-date"
 					name="completionDate"
 					required
+					onchange={handleDateChange}
 				/>
 				<p class="text-xs text-muted-foreground">
 					You can select a past date if you're adding an older read.

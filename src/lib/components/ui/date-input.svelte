@@ -10,6 +10,7 @@
 		required?: boolean;
 		disabled?: boolean;
 		class?: string;
+		onchange?: () => void;
 	}
 
 	let {
@@ -20,7 +21,8 @@
 		id,
 		required = false,
 		disabled = false,
-		class: className
+		class: className,
+		onchange
 	}: Props = $props();
 </script>
 
@@ -33,6 +35,7 @@
 	{id}
 	{required}
 	{disabled}
+	onchange={onchange}
 	class={cn(
 		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2',
 		'text-base ring-offset-background',
