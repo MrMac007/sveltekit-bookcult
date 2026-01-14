@@ -82,6 +82,8 @@ async function _markComplete(
   bookId: string,
   completedAt?: string
 ): Promise<MarkCompleteResult> {
+  const dateToUse = completedAt || new Date().toISOString().split('T')[0]
+
   // Check if already completed
   const { data: existing } = await db
     .from('completed_books')
@@ -91,6 +93,20 @@ async function _markComplete(
     .single()
 
   if (existing) {
+    // Update the existing record with new date if provided
+    const { error } = await db
+      .from('completed_books')
+      .update({
+        completed_at: dateToUse,
+        date_confirmed: true,
+      })
+      .eq('user_id', userId)
+      .eq('book_id', bookId)
+
+    if (error) {
+      return { success: false, bookId, error: error.message }
+    }
+
     return { success: true, bookId, alreadyCompleted: true }
   }
 
@@ -104,7 +120,7 @@ async function _markComplete(
   const { error } = await db.from('completed_books').insert({
     user_id: userId,
     book_id: bookId,
-    completed_at: completedAt || new Date().toISOString().split('T')[0],
+    completed_at: dateToUse,
     date_confirmed: true,
   })
 

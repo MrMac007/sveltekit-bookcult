@@ -2,17 +2,12 @@
 	import AppLayout from '$lib/components/layout/app-layout.svelte';
 	import BookCard from '$lib/components/books/book-card.svelte';
 	import EmptyState from '$lib/components/ui/empty-state.svelte';
-	import MarkCompleteDialog from '$lib/components/books/mark-complete-dialog.svelte';
 	import { BookMarked } from 'lucide-svelte';
 	import type { PageData } from './$types';
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 
 	let { data }: { data: PageData } = $props();
-
-	let showCompleteDialog = $state(false);
-	let selectedBook = $state<any>(null);
-	let isSubmitting = $state(false);
 
 	async function handleRemove(bookId: string) {
 		const formData = new FormData();
@@ -28,37 +23,9 @@
 		}
 	}
 
-	function openCompleteDialog(book: any) {
-		selectedBook = book;
-		showCompleteDialog = true;
-	}
-
-	async function handleMarkComplete(completedAt: string) {
-		if (!selectedBook) return;
-
-		// Capture book ID and close dialog immediately to prevent date reset issues
-		const bookId = selectedBook.id;
-		showCompleteDialog = false;
-		isSubmitting = true;
-
-		const formData = new FormData();
-		formData.append('bookId', bookId);
-		formData.append('completedAt', completedAt);
-
-		const response = await fetch('?/markComplete', {
-			method: 'POST',
-			body: formData
-		});
-
-		isSubmitting = false;
-
-		if (response.ok) {
-			// Redirect will be handled by the action
-			const result = await response.json();
-			if (result.type === 'redirect') {
-				goto(result.location);
-			}
-		}
+	function handleMarkComplete(book: any) {
+		// Navigate directly to rating page
+		goto(`/rate/${book.id}`);
 	}
 </script>
 
@@ -90,7 +57,7 @@
 								isbn_10: book.isbn_10,
 								isbn_13: book.isbn_13
 							}}
-							onMarkComplete={openCompleteDialog}
+							onMarkComplete={handleMarkComplete}
 							isInWishlist={true}
 						/>
 						<div class="mt-2">
@@ -118,10 +85,3 @@
 		{/if}
 	</div>
 </AppLayout>
-
-<MarkCompleteDialog
-	bind:open={showCompleteDialog}
-	bookTitle={selectedBook?.title}
-	isSubmitting={isSubmitting}
-	onConfirm={handleMarkComplete}
-/>

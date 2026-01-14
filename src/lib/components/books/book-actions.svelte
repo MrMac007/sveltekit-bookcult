@@ -5,7 +5,6 @@
 	import { toast } from 'svelte-sonner';
 	import type { BookCardData } from '$lib/types/api';
 	import type { User } from '@supabase/supabase-js';
-	import MarkCompleteDialog from './mark-complete-dialog.svelte';
 
 	interface Props {
 		user: User;
@@ -32,7 +31,6 @@
 	let addingToWishlist = $state(false);
 	let togglingReading = $state(false);
 	let markingComplete = $state(false);
-	let showCompleteDialog = $state(false);
 
 	// Local state mirrors
 	let localIsInWishlist = $state(isInWishlist);
@@ -151,42 +149,41 @@
 		}
 	}
 
-	function openCompleteDialog() {
-		if (localIsCompleted) return;
-		showCompleteDialog = true;
-	}
-
-	async function handleMarkComplete(completedAt: string) {
+	async function handleMarkComplete() {
 		if (markingComplete || localIsCompleted) return;
 
-		console.log('handleMarkComplete called with date:', completedAt);
 		markingComplete = true;
-		showCompleteDialog = false;
 		try {
-			const requestBody = buildApiRequestBody('completed', completedAt);
-			console.log('Sending request body:', JSON.stringify(requestBody));
-			const response = await fetch('/api/books/add', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(requestBody)
-			});
+			// Check if book is already in DB (UUID format)
+			const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
 
-			const result = await response.json();
+			let bookId: string;
 
-			if (!response.ok) {
-				throw new Error(result.error || 'Failed to mark as complete');
+			if (isUUID) {
+				// Book already in DB
+				bookId = book.id;
+			} else {
+				// Need to create book first - use wishlist endpoint to just create the book
+				const response = await fetch('/api/books/add', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(buildApiRequestBody('wishlist'))
+				});
+
+				const result = await response.json();
+
+				if (!response.ok) {
+					throw new Error(result.error || 'Failed to create book');
+				}
+
+				bookId = result.bookId;
 			}
 
-			localIsCompleted = true;
-			localIsInWishlist = false;
-			localIsCurrentlyReading = false;
-			onStatusChange?.();
-
-			// Redirect to rating page
-			goto(`/rate/${result.bookId}`);
+			// Go to rating page where user can set date and rating
+			goto(`/rate/${bookId}`);
 		} catch (err) {
-			console.error('Error marking as complete:', err);
-			toast.error(err instanceof Error ? err.message : 'Failed to mark as complete');
+			console.error('Error navigating to rating page:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to open rating page');
 			markingComplete = false;
 		}
 	}
@@ -246,13 +243,13 @@
 		<Button
 			size="sm"
 			variant="outline"
-			onclick={openCompleteDialog}
+			onclick={handleMarkComplete}
 			disabled={markingComplete}
 			class="flex-1"
 		>
 			{#if markingComplete}
 				<Loader2 class="mr-1.5 h-3.5 w-3.5 animate-spin" />
-				Completing...
+				Loading...
 			{:else}
 				<BookCheck class="mr-1.5 h-3.5 w-3.5" />
 				Mark as Complete
@@ -265,10 +262,3 @@
 		</Button>
 	{/if}
 </div>
-
-<MarkCompleteDialog
-	bind:open={showCompleteDialog}
-	bookTitle={book.title}
-	isSubmitting={markingComplete}
-	onConfirm={handleMarkComplete}
-/>

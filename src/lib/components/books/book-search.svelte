@@ -175,29 +175,25 @@
 	}
 
 	/**
-	 * Mark book as complete
+	 * Mark book as complete - creates the book and navigates to rating page
 	 */
 	async function handleMarkComplete(book: BookCardData) {
 		const workKey = book.open_library_key || book.id;
 		if (!workKey) return;
 
+		const result = searchResults.find((r) => r.workKey === workKey);
+		if (!result) return;
+
 		isAddingBook = workKey;
 
-		// Optimistic update
-		const currentStatus = getStatus(workKey);
-		userLibrary.set(workKey, { wishlist: false, reading: false, completed: true });
-		userLibrary = new Map(userLibrary);
-
 		try {
-			const result = searchResults.find((r) => r.workKey === workKey);
-			if (!result) return;
-
+			// Create the book first (using wishlist to just ensure it exists in DB)
 			const response = await fetch('/api/books/add', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					workKey,
-					listType: 'completed',
+					listType: 'wishlist',
 					bookData: {
 						title: result.title,
 						authors: result.authors,
@@ -208,19 +204,17 @@
 			});
 
 			if (!response.ok) {
-				throw new Error('Failed to mark as complete');
+				throw new Error('Failed to create book');
 			}
 
 			const data = await response.json();
 			if (data.bookId) {
+				// Navigate to rating page where user can set date and rating
 				goto(`/rate/${data.bookId}`);
 			}
 		} catch (error) {
-			console.error('Error marking as complete:', error);
-			// Rollback optimistic update
-			userLibrary.set(workKey, currentStatus);
-			userLibrary = new Map(userLibrary);
-			toast.error('Failed to mark as complete. Please try again.');
+			console.error('Error navigating to rating page:', error);
+			toast.error('Failed to open rating page. Please try again.');
 		} finally {
 			isAddingBook = null;
 		}

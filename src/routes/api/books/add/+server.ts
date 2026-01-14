@@ -45,11 +45,6 @@ export const POST: RequestHandler = async (event) => {
 
 	const { bookId: providedBookId, workKey, listType, bookData, completedAt } = body;
 
-	// Debug logging
-	if (listType === 'completed') {
-		console.log('Mark complete request - completedAt:', completedAt, 'body:', JSON.stringify(body));
-	}
-
 	// Validate listType
 	if (!listType || !['wishlist', 'reading', 'completed'].includes(listType)) {
 		return json({ error: 'Invalid listType. Must be: wishlist, reading, or completed' }, { status: 400 });

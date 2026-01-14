@@ -7,6 +7,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import DateInput from '$lib/components/ui/date-input.svelte';
 	import { Calendar, Loader2 } from 'lucide-svelte';
+	import { getTodayString, parseDateString } from '$lib/utils/date';
 
 	interface Props {
 		open?: boolean;
@@ -25,23 +26,6 @@
 		onConfirm,
 		onCancel
 	}: Props = $props();
-
-	// Default to today's date in YYYY-MM-DD format
-	function getTodayString(): string {
-		const today = new Date();
-		return today.toISOString().split('T')[0];
-	}
-
-	// Parse the current date to YYYY-MM-DD format
-	function parseDateString(dateStr: string): string {
-		if (!dateStr) return getTodayString();
-		try {
-			const date = new Date(dateStr);
-			return date.toISOString().split('T')[0];
-		} catch {
-			return getTodayString();
-		}
-	}
 
 	let completionDate = $state(parseDateString(currentDate));
 

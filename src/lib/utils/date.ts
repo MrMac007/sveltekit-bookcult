@@ -62,3 +62,27 @@ export function formatShortDate(dateString?: string | null): string {
 		day: 'numeric'
 	});
 }
+
+/**
+ * Gets today's date as YYYY-MM-DD string (for date inputs)
+ * @returns Today's date in YYYY-MM-DD format
+ */
+export function getTodayString(): string {
+	return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Parses a date string to YYYY-MM-DD format, with fallback to today
+ * @param dateStr - Date string to parse
+ * @returns Date in YYYY-MM-DD format
+ */
+export function parseDateString(dateStr?: string | null): string {
+	if (!dateStr) return getTodayString();
+	try {
+		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return getTodayString();
+		return date.toISOString().split('T')[0];
+	} catch {
+		return getTodayString();
+	}
+}

@@ -28,12 +28,7 @@
 	function handleChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		value = target.value;
-		console.log('DateInput handleChange - new value:', value, 'has onchange:', !!onchange);
-		if (onchange) {
-			console.log('DateInput calling onchange callback...');
-			onchange(value);
-			console.log('DateInput onchange callback completed');
-		}
+		onchange?.(value);
 	}
 </script>
 

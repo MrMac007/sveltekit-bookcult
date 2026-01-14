@@ -8,6 +8,7 @@
 	import { BookMarked } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
+	import { getTodayString } from '$lib/utils/date';
 
 	interface Props {
 		book: {
@@ -22,10 +23,6 @@
 	}
 
 	let { book, existingRating, existingReview, existingCompletionDate }: Props = $props();
-
-	function getTodayString(): string {
-		return new Date().toISOString().split('T')[0];
-	}
 
 	let rating = $state(existingRating || 0);
 	let review = $state(existingReview || '');
