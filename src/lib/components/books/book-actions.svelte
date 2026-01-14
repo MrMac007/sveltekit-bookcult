@@ -159,13 +159,16 @@
 	async function handleMarkComplete(completedAt: string) {
 		if (markingComplete || localIsCompleted) return;
 
+		console.log('handleMarkComplete called with date:', completedAt);
 		markingComplete = true;
 		showCompleteDialog = false;
 		try {
+			const requestBody = buildApiRequestBody('completed', completedAt);
+			console.log('Sending request body:', JSON.stringify(requestBody));
 			const response = await fetch('/api/books/add', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(buildApiRequestBody('completed', completedAt))
+				body: JSON.stringify(requestBody)
 			});
 
 			const result = await response.json();

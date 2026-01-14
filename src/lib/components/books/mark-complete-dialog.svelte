@@ -30,27 +30,25 @@
 		return today.toISOString().split('T')[0];
 	}
 
+	// Store the date
 	let completionDate = $state(getTodayString());
-	let hasUserSelectedDate = $state(false);
 
-	// Reset date only when dialog opens fresh, preserve user selection during submission
-	$effect(() => {
-		if (open) {
-			// Only reset if this is a fresh open (user hasn't selected a date yet)
-			if (!hasUserSelectedDate) {
-				completionDate = getTodayString();
-			}
-		} else {
-			// Reset flag when dialog closes for next use
-			hasUserSelectedDate = false;
+	// Track previous open state to detect transitions
+	let prevOpen = false;
+
+	$effect.pre(() => {
+		// Only reset date when dialog transitions from closed → open
+		if (open && !prevOpen) {
+			const today = getTodayString();
+			console.log('Dialog opening, setting initial date to:', today);
+			completionDate = today;
 		}
+		prevOpen = open;
 	});
 
-	function handleDateChange() {
-		hasUserSelectedDate = true;
-	}
-
 	function handleConfirm() {
+		// Always use the current value from the input
+		console.log('handleConfirm called with completionDate:', completionDate);
 		if (completionDate) {
 			onConfirm?.(completionDate);
 		}
@@ -90,7 +88,6 @@
 					id="completion-date"
 					name="completionDate"
 					required
-					onchange={handleDateChange}
 				/>
 				<p class="text-xs text-muted-foreground">
 					You can select a past date if you're adding an older read.
