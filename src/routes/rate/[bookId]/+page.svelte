@@ -12,6 +12,7 @@
 			book={data.book}
 			existingRating={data.existingRating?.rating}
 			existingReview={data.existingRating?.review}
+			existingCompletionDate={data.existingCompletionDate}
 		/>
 	</div>
 </AppLayout>

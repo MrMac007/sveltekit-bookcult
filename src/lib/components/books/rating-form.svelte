@@ -3,6 +3,8 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { StarRating } from '$lib/components/ui/star-rating';
+	import { Label } from '$lib/components/ui/label';
+	import DateInput from '$lib/components/ui/date-input.svelte';
 	import { BookMarked } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
@@ -16,12 +18,18 @@
 		};
 		existingRating?: number | null;
 		existingReview?: string | null;
+		existingCompletionDate?: string | null;
 	}
 
-	let { book, existingRating, existingReview }: Props = $props();
+	let { book, existingRating, existingReview, existingCompletionDate }: Props = $props();
+
+	function getTodayString(): string {
+		return new Date().toISOString().split('T')[0];
+	}
 
 	let rating = $state(existingRating || 0);
 	let review = $state(existingReview || '');
+	let completionDate = $state(existingCompletionDate || getTodayString());
 	let isSubmitting = $state(false);
 </script>
 
@@ -72,6 +80,7 @@
 	>
 		<input type="hidden" name="book_id" value={book.id} />
 		<input type="hidden" name="rating" value={rating} />
+		<input type="hidden" name="completionDate" value={completionDate} />
 
 		<Card>
 			<CardHeader>
@@ -98,6 +107,19 @@
 						rows={5}
 						class="resize-none"
 					/>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="completion-date">When did you finish this book?</Label>
+					<DateInput
+						bind:value={completionDate}
+						max={getTodayString()}
+						id="completion-date"
+						name="completionDateInput"
+					/>
+					<p class="text-xs text-muted-foreground">
+						This date is used to track your reading progress and yearly goals.
+					</p>
 				</div>
 			</CardContent>
 		</Card>
