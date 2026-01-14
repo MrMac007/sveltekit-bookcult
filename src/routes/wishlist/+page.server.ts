@@ -124,15 +124,12 @@ export const actions: Actions = {
       // Remove from wishlist
       await supabase.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId)
 
-      // Add to completed books with optional date
+      // Add to completed books with date - always confirm since this flow goes through the dialog
       const insertData: Record<string, unknown> = {
         user_id: user.id,
         book_id: bookId,
-      }
-
-      if (completedAt) {
-        insertData.completed_at = completedAt
-        insertData.date_confirmed = true
+        completed_at: completedAt || new Date().toISOString().split('T')[0],
+        date_confirmed: true
       }
 
       const { error } = await supabase.from('completed_books').insert(insertData as any)
