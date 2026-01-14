@@ -8,6 +8,9 @@
 	import DateInput from '$lib/components/ui/date-input.svelte';
 	import { BookCheck, Loader2 } from 'lucide-svelte';
 
+	// Log to verify this version is being loaded
+	console.log('mark-complete-dialog.svelte LOADED - version 2');
+
 	interface Props {
 		open?: boolean;
 		bookTitle?: string;
@@ -30,25 +33,16 @@
 		return today.toISOString().split('T')[0];
 	}
 
-	// Store the date
+	// Store the date - initialize once
 	let completionDate = $state(getTodayString());
 
-	// Track previous open state to detect transitions
-	let prevOpen = false;
-
-	$effect.pre(() => {
-		// Only reset date when dialog transitions from closed → open
-		if (open && !prevOpen) {
-			const today = getTodayString();
-			console.log('Dialog opening, setting initial date to:', today);
-			completionDate = today;
-		}
-		prevOpen = open;
+	// Debug: Monitor completionDate changes
+	$effect(() => {
+		console.log('$effect: completionDate is now:', completionDate);
 	});
 
 	function handleConfirm() {
-		// Always use the current value from the input
-		console.log('handleConfirm called with completionDate:', completionDate);
+		console.log('handleConfirm - sending date:', completionDate);
 		if (completionDate) {
 			onConfirm?.(completionDate);
 		}
@@ -59,10 +53,23 @@
 		onCancel?.();
 	}
 
+	// Handle dialog open/close
 	function handleOpenChange(isOpen: boolean) {
-		if (!isOpen) {
+		if (isOpen) {
+			// Dialog just opened - reset to today
+			completionDate = getTodayString();
+			console.log('Dialog opened, reset date to:', completionDate);
+		} else {
+			// Dialog closing
 			handleCancel();
 		}
+	}
+
+	// Track date changes from input - receives value from DateInput
+	function handleDateChange(newValue: string) {
+		console.log('Date changed via onchange - received:', newValue, 'state was:', completionDate);
+		completionDate = newValue;
+		console.log('Date changed via onchange - state now:', completionDate);
 	}
 </script>
 
@@ -71,7 +78,7 @@
 		<DialogHeader>
 			<DialogTitle class="flex items-center gap-2">
 				<BookCheck class="h-5 w-5 text-primary" />
-				Mark as Complete
+				Mark as Complete (v2)
 			</DialogTitle>
 		</DialogHeader>
 
@@ -88,6 +95,7 @@
 					id="completion-date"
 					name="completionDate"
 					required
+					onchange={handleDateChange}
 				/>
 				<p class="text-xs text-muted-foreground">
 					You can select a past date if you're adding an older read.

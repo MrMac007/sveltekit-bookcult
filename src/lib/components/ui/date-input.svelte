@@ -10,7 +10,7 @@
 		required?: boolean;
 		disabled?: boolean;
 		class?: string;
-		onchange?: () => void;
+		onchange?: (value: string) => void;
 	}
 
 	let {
@@ -24,6 +24,17 @@
 		class: className,
 		onchange
 	}: Props = $props();
+
+	function handleChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		value = target.value;
+		console.log('DateInput handleChange - new value:', value, 'has onchange:', !!onchange);
+		if (onchange) {
+			console.log('DateInput calling onchange callback...');
+			onchange(value);
+			console.log('DateInput onchange callback completed');
+		}
+	}
 </script>
 
 <input
@@ -35,7 +46,7 @@
 	{id}
 	{required}
 	{disabled}
-	onchange={onchange}
+	onchange={handleChange}
 	class={cn(
 		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2',
 		'text-base ring-offset-background',
