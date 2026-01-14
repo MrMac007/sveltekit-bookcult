@@ -1,6 +1,6 @@
 import { createClient } from '$lib/supabase/server'
-import { redirect } from '@sveltejs/kit'
-import type { PageServerLoad } from './$types'
+import { redirect, fail } from '@sveltejs/kit'
+import type { PageServerLoad, Actions } from './$types'
 
 interface BookData {
   id: string
@@ -172,4 +172,47 @@ export const load: PageServerLoad = async (event) => {
     currentlyReading: validCurrentlyReading,
     completedBooks: completedWithRatings,
   }
+}
+
+export const actions: Actions = {
+  removeBook: async (event) => {
+    const supabase = createClient(event)
+    const db = supabase as any
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return fail(401, { error: 'Not authenticated' })
+    }
+
+    const formData = await event.request.formData()
+    const bookId = formData.get('bookId') as string
+
+    if (!bookId) {
+      return fail(400, { error: 'Missing book ID' })
+    }
+
+    try {
+      // Remove from all user-related tables in parallel
+      const [wishlistResult, readingResult, completedResult, ratingsResult] = await Promise.all([
+        db.from('wishlists').delete().eq('user_id', user.id).eq('book_id', bookId),
+        db.from('currently_reading').delete().eq('user_id', user.id).eq('book_id', bookId),
+        db.from('completed_books').delete().eq('user_id', user.id).eq('book_id', bookId),
+        db.from('ratings').delete().eq('user_id', user.id).eq('book_id', bookId),
+      ])
+
+      // Check for any errors
+      if (wishlistResult.error) throw wishlistResult.error
+      if (readingResult.error) throw readingResult.error
+      if (completedResult.error) throw completedResult.error
+      if (ratingsResult.error) throw ratingsResult.error
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error removing book:', error)
+      return fail(500, { error: 'Failed to remove book' })
+    }
+  },
 }
