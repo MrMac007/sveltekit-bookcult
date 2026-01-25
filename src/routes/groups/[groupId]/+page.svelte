@@ -8,6 +8,11 @@
 	import UpNextSection from '$lib/components/groups/up-next-section.svelte';
 	import SuggestionSection from '$lib/components/groups/suggestion-section.svelte';
 	import ManageReadingList from '$lib/components/groups/manage-reading-list.svelte';
+	import Tabs from '$lib/components/ui/tabs.svelte';
+	import TabsList from '$lib/components/ui/tabs-list.svelte';
+	import TabsTrigger from '$lib/components/ui/tabs-trigger.svelte';
+	import TabsContent from '$lib/components/ui/tabs-content.svelte';
+	import { Star, Lightbulb, BookOpen, Settings } from 'lucide-svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -32,68 +37,101 @@
 <AppLayout title={data.group.name} showLogo={false}>
 	<div class="mx-auto max-w-5xl px-4 py-6">
 		<div class="space-y-6">
-				<GroupHeader group={data.group} />
+			<GroupHeader group={data.group} />
 
-				<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-					<div class="order-2 space-y-6 lg:order-1 lg:col-span-2">
-						<GroupRatings ratings={data.ratings} currentUserId={data.currentUserId} />
-					</div>
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<!-- Main Content with Tabs -->
+				<div class="order-2 lg:order-1 lg:col-span-2">
+					<Tabs value="ratings" class="w-full">
+						<TabsList class="mb-4 w-full justify-start">
+							<TabsTrigger value="ratings" class="flex items-center gap-1.5">
+								<Star class="h-4 w-4" />
+								<span class="hidden sm:inline">Ratings</span>
+							</TabsTrigger>
+							<TabsTrigger value="suggestions" class="flex items-center gap-1.5">
+								<Lightbulb class="h-4 w-4" />
+								<span class="hidden sm:inline">Suggestions</span>
+							</TabsTrigger>
+							<TabsTrigger value="reading-list" class="flex items-center gap-1.5">
+								<BookOpen class="h-4 w-4" />
+								<span class="hidden sm:inline">Reading List</span>
+							</TabsTrigger>
+							{#if data.group.isAdmin}
+								<TabsTrigger value="manage" class="flex items-center gap-1.5">
+									<Settings class="h-4 w-4" />
+									<span class="hidden sm:inline">Manage</span>
+								</TabsTrigger>
+							{/if}
+						</TabsList>
 
-					<div class="order-1 space-y-6 lg:order-2 lg:col-span-1">
-						<GroupMembers
-							members={data.members}
-							currentUserId={data.currentUserId}
-							isAdmin={data.group.isAdmin}
-							groupId={data.group.id}
-						/>
+						<TabsContent value="ratings">
+							<GroupRatings ratings={data.ratings} currentUserId={data.currentUserId} />
+						</TabsContent>
 
-						<GroupGoalSection
-							target={data.groupGoal.target}
-							completed={data.groupGoal.completed}
-							year={data.groupGoal.year}
-							isAdmin={data.group.isAdmin}
-							groupId={data.group.id}
-						/>
+						<TabsContent value="suggestions">
+							<SuggestionSection
+								groupId={data.group.id}
+								isAdmin={data.group.isAdmin}
+								round={data.suggestions.round}
+								userSuggestions={data.suggestions.userSuggestions}
+								results={data.suggestions.results}
+							/>
+						</TabsContent>
 
-						<CurrentBookSection
-							currentBook={data.group.currentBook}
-							isCurrentUserReading={data.group.isCurrentUserReading}
-							readingMembers={data.group.readingMembers}
-							groupId={data.group.id}
-							currentUserId={data.currentUserId}
-							isAdmin={data.group.isAdmin}
-							deadline={data.group.current_book_deadline}
-							hasUserCompleted={data.group.hasUserCompletedCurrentBook}
-						/>
-
-						<SuggestionSection
-							groupId={data.group.id}
-							isAdmin={data.group.isAdmin}
-							round={data.suggestions.round}
-							userSuggestions={data.suggestions.userSuggestions}
-							results={data.suggestions.results}
-						/>
-
-						<UpNextSection
-							books={data.upNextBooks}
-							isAdmin={data.group.isAdmin}
-							groupId={data.group.id}
-						/>
+						<TabsContent value="reading-list">
+							<UpNextSection
+								books={data.upNextBooks}
+								isAdmin={data.group.isAdmin}
+								groupId={data.group.id}
+							/>
+						</TabsContent>
 
 						{#if data.group.isAdmin}
-							<ManageReadingList
-								group={{
-									id: data.group.id,
-									name: data.group.name,
-									current_book_id: data.group.current_book_id
-								}}
-								userId={data.currentUserId}
-								initialBooks={data.readingListBooks}
-								isAdmin={data.group.isAdmin}
-							/>
+							<TabsContent value="manage">
+								<ManageReadingList
+									group={{
+										id: data.group.id,
+										name: data.group.name,
+										current_book_id: data.group.current_book_id
+									}}
+									userId={data.currentUserId}
+									initialBooks={data.readingListBooks}
+									isAdmin={data.group.isAdmin}
+								/>
+							</TabsContent>
 						{/if}
-					</div>
+					</Tabs>
 				</div>
+
+				<!-- Sidebar -->
+				<div class="order-1 space-y-6 lg:order-2 lg:col-span-1">
+					<CurrentBookSection
+						currentBook={data.group.currentBook}
+						isCurrentUserReading={data.group.isCurrentUserReading}
+						readingMembers={data.group.readingMembers}
+						groupId={data.group.id}
+						currentUserId={data.currentUserId}
+						isAdmin={data.group.isAdmin}
+						deadline={data.group.current_book_deadline}
+						hasUserCompleted={data.group.hasUserCompletedCurrentBook}
+					/>
+
+					<GroupGoalSection
+						target={data.groupGoal.target}
+						completed={data.groupGoal.completed}
+						year={data.groupGoal.year}
+						isAdmin={data.group.isAdmin}
+						groupId={data.group.id}
+					/>
+
+					<GroupMembers
+						members={data.members}
+						currentUserId={data.currentUserId}
+						isAdmin={data.group.isAdmin}
+						groupId={data.group.id}
+					/>
+				</div>
+			</div>
 		</div>
 	</div>
 </AppLayout>
