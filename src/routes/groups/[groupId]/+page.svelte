@@ -6,6 +6,7 @@
 	import CurrentBookSection from '$lib/components/groups/current-book-section.svelte';
 	import GroupRatings from '$lib/components/groups/group-ratings.svelte';
 	import UpNextSection from '$lib/components/groups/up-next-section.svelte';
+	import SuggestionSection from '$lib/components/groups/suggestion-section.svelte';
 	import ManageReadingList from '$lib/components/groups/manage-reading-list.svelte';
 	import type { PageData } from './$types';
 
@@ -63,6 +64,14 @@
 							isAdmin={data.group.isAdmin}
 							deadline={data.group.current_book_deadline}
 							hasUserCompleted={data.group.hasUserCompletedCurrentBook}
+						/>
+
+						<SuggestionSection
+							groupId={data.group.id}
+							isAdmin={data.group.isAdmin}
+							round={data.suggestions.round}
+							userSuggestions={data.suggestions.userSuggestions}
+							results={data.suggestions.results}
 						/>
 
 						<UpNextSection

@@ -493,6 +493,87 @@ export interface Database {
           created_at?: string
         }
       }
+      group_suggestion_rounds: {
+        Row: {
+          id: string
+          group_id: string
+          status: 'open' | 'revealed'
+          created_at: string
+          revealed_at: string | null
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          status?: 'open' | 'revealed'
+          created_at?: string
+          revealed_at?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          status?: 'open' | 'revealed'
+          created_at?: string
+          revealed_at?: string | null
+        }
+      }
+      group_suggestions: {
+        Row: {
+          id: string
+          round_id: string
+          user_id: string
+          book_id: string
+          rank: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          round_id: string
+          user_id: string
+          book_id: string
+          rank: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          round_id?: string
+          user_id?: string
+          book_id?: string
+          rank?: number
+          created_at?: string
+        }
+      }
+      group_suggestion_results: {
+        Row: {
+          id: string
+          round_id: string
+          book_id: string
+          final_rank: number
+          base_score: number
+          overlap_bonus: number
+          total_score: number
+          member_count: number
+        }
+        Insert: {
+          id?: string
+          round_id: string
+          book_id: string
+          final_rank: number
+          base_score: number
+          overlap_bonus: number
+          total_score: number
+          member_count: number
+        }
+        Update: {
+          id?: string
+          round_id?: string
+          book_id?: string
+          final_rank?: number
+          base_score?: number
+          overlap_bonus?: number
+          total_score?: number
+          member_count?: number
+        }
+      }
     }
     Views: {
       [_ in never]: never

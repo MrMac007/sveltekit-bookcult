@@ -2,6 +2,7 @@ import { createClient } from '$lib/supabase/server'
 import { error, redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import * as groupActions from '$lib/actions/groups'
+import * as suggestionActions from '$lib/actions/suggestions'
 import { setGroupReadingGoal, deleteGroupReadingGoal, getGroupGoalProgress } from '$lib/actions/goals'
 
 interface GroupWithBook {
@@ -276,6 +277,13 @@ export const load: PageServerLoad = async (event) => {
       cover_url: item.books!.cover_url,
     }))
 
+  // Get suggestion round data
+  const suggestionData = await suggestionActions.getSuggestionRoundData(
+    supabase as any,
+    groupId,
+    user.id
+  )
+
   return {
     group: {
       id: typedGroup.id,
@@ -301,6 +309,11 @@ export const load: PageServerLoad = async (event) => {
       completed: groupGoalProgress.completed,
       year: currentYear,
     },
+    suggestions: {
+      round: suggestionData.round,
+      userSuggestions: suggestionData.userSuggestions,
+      results: suggestionData.results,
+    },
   }
 }
 
@@ -310,6 +323,14 @@ export const actions: Actions = {
   setCurrentReadingBook: groupActions.setCurrentReadingBook,
   toggleGroupBookReading: groupActions.toggleGroupBookReading,
   reorderReadingList: groupActions.reorderReadingList,
+
+  // Suggestion actions
+  addSuggestion: suggestionActions.addSuggestion,
+  removeSuggestion: suggestionActions.removeSuggestion,
+  updateSuggestionRank: suggestionActions.updateSuggestionRank,
+  revealSuggestions: suggestionActions.revealSuggestions,
+  reopenSuggestions: suggestionActions.reopenSuggestions,
+  setRevealedBookAsCurrent: suggestionActions.setRevealedBookAsCurrent,
 
   setGroupGoal: async (event) => {
     const formData = await event.request.formData()
