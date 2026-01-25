@@ -70,8 +70,16 @@
 				throw new Error('Failed to search books');
 			}
 
-			const result = await response.json();
-			searchResults = Array.isArray(result) ? result : [];
+			const data = await response.json();
+			// API returns { results: [...] } - transform to the format we need
+			searchResults = (data.results || []).map((r: any) => ({
+				id: r.workKey,
+				open_library_key: r.workKey,
+				title: r.title,
+				authors: r.authors || [],
+				cover_url: r.coverUrl,
+				published_date: r.firstPublishYear?.toString()
+			}));
 		} catch (error) {
 			console.error('Error searching books:', error);
 			searchResults = [];

@@ -80,8 +80,16 @@
 				throw new Error('Failed to search books');
 			}
 
-			const result = await response.json();
-			searchResults = Array.isArray(result) ? result : [];
+			const data = await response.json();
+			// API returns { results: [...] } - transform to the format we need
+			searchResults = (data.results || []).map((r: any) => ({
+				id: r.workKey,
+				open_library_key: r.workKey,
+				title: r.title,
+				authors: r.authors || [],
+				cover_url: r.coverUrl,
+				published_date: r.firstPublishYear?.toString()
+			}));
 		} catch (error) {
 			console.error('Error searching books:', error);
 			searchResults = [];
@@ -108,14 +116,18 @@
 		}, 500);
 	}
 
-	function isBookInList(googleBooksId: string): boolean {
-		return books.some((book) => book.google_books_id === googleBooksId);
+	function isBookInList(bookKey: string): boolean {
+		// Check by open_library_key, google_books_id, or id
+		return books.some((book) =>
+			book.google_books_id === bookKey ||
+			book.id === bookKey
+		);
 	}
 
 	async function handleAddBook(book: any) {
 		if (addingBookId) return;
 
-		addingBookId = book.google_books_id || book.id;
+		addingBookId = book.open_library_key || book.id;
 
 		try {
 			const formData = new FormData();
@@ -284,16 +296,16 @@
 											</p>
 										{/if}
 									</div>
-									{#if isBookInList(book.google_books_id)}
+									{#if isBookInList(book.open_library_key || book.id)}
 										<Badge variant="secondary" class="text-xs">Added</Badge>
 									{:else}
 										<Button
 											size="sm"
 											variant="ghost"
 											onclick={() => handleAddBook(book)}
-											disabled={addingBookId === (book.google_books_id || book.id)}
+											disabled={addingBookId === (book.open_library_key || book.id)}
 										>
-											{#if addingBookId === (book.google_books_id || book.id)}
+											{#if addingBookId === (book.open_library_key || book.id)}
 												<Loader2 class="h-4 w-4 animate-spin" />
 											{:else}
 												<Plus class="h-4 w-4" />
