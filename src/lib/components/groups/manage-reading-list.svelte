@@ -2,24 +2,29 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import {
 		BookMarked,
 		Plus,
 		Trash2,
-		Search,
 		Loader2,
 		Star,
 		X,
 		Settings
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { useBookSearch } from '$lib/stores/book-search';
+	import BookSearchPanel from '$lib/components/books/book-search-panel.svelte';
+	import BookSearchResultRow from '$lib/components/books/book-search-result-row.svelte';
+	import { toBookCardData } from '$lib/utils/books';
+	import GroupReadingListItems from '$lib/components/groups/group-reading-list-items.svelte';
+	import type { BookSearchResult } from '$lib/types/book-search';
 
 	interface GroupBook {
 		id: string;
 		groupBookId: string;
 		google_books_id: string | null;
+		open_library_key: string | null;
 		title: string;
 		authors: string[];
 		cover_url: string | null;
@@ -47,11 +52,12 @@
 	}: Props = $props();
 
 	// Search state
-	let searchQuery = $state('');
-	let searchResults = $state<any[]>([]);
-	let isSearching = $state(false);
+	const search = useBookSearch({
+		autoSearch: true,
+		onError: () => toast.error('Failed to search books')
+	});
+
 	let showSearch = $state(false);
-	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Action states
 	let addingBookId = $state<string | null>(null);
@@ -66,72 +72,26 @@
 		books = initialBooks;
 	});
 
-	async function searchBooks() {
-		if (!searchQuery.trim() || searchQuery.length < 2) {
-			searchResults = [];
-			return;
+	function isBookInList(result: BookSearchResult): boolean {
+		if (result.id && books.some((book) => book.id === result.id)) {
+			return true;
 		}
 
-		isSearching = true;
-
-		try {
-			const response = await fetch(`/api/books/search?q=${encodeURIComponent(searchQuery)}`);
-			if (!response.ok) {
-				throw new Error('Failed to search books');
-			}
-
-			const data = await response.json();
-			// API returns { results: [...] } - transform to the format we need
-			searchResults = (data.results || []).map((r: any) => ({
-				id: r.workKey,
-				open_library_key: r.workKey,
-				title: r.title,
-				authors: r.authors || [],
-				cover_url: r.coverUrl,
-				published_date: r.firstPublishYear?.toString()
-			}));
-		} catch (error) {
-			console.error('Error searching books:', error);
-			searchResults = [];
-			toast.error('Failed to search books');
-		} finally {
-			isSearching = false;
+		if (result.open_library_key) {
+			return books.some((book) => book.open_library_key === result.open_library_key);
 		}
+
+		return false;
 	}
 
-	function handleSearchInput(value: string) {
-		searchQuery = value;
-
-		if (debounceTimer) {
-			clearTimeout(debounceTimer);
-		}
-
-		if (!value.trim()) {
-			searchResults = [];
-			return;
-		}
-
-		debounceTimer = setTimeout(() => {
-			searchBooks();
-		}, 500);
-	}
-
-	function isBookInList(bookKey: string): boolean {
-		// Check by open_library_key, google_books_id, or id
-		return books.some((book) =>
-			book.google_books_id === bookKey ||
-			book.id === bookKey
-		);
-	}
-
-	async function handleAddBook(book: any) {
+	async function handleAddBook(book: BookSearchResult) {
 		if (addingBookId) return;
 
-		addingBookId = book.open_library_key || book.id;
+		addingBookId = book.id || book.open_library_key;
 
 		try {
 			const formData = new FormData();
-			formData.append('bookData', JSON.stringify(book));
+			formData.append('bookData', JSON.stringify(toBookCardData(book)));
 
 			const response = await fetch(`/groups/${group.id}/reading-list?/addBook`, {
 				method: 'POST',
@@ -141,8 +101,7 @@
 			if (response.ok) {
 				toast.success('Book added to reading list');
 				await invalidateAll();
-				searchQuery = '';
-				searchResults = [];
+				search.reset();
 			} else {
 				const result = await response.json();
 				toast.error(result.error || 'Failed to add book');
@@ -233,13 +192,12 @@
 					size="sm"
 					variant={showSearch ? 'secondary' : 'outline'}
 					onclick={() => {
-						showSearch = !showSearch;
-						if (!showSearch) {
-							searchQuery = '';
-							searchResults = [];
-						}
-					}}
-				>
+				showSearch = !showSearch;
+				if (!showSearch) {
+					search.reset();
+				}
+			}}
+		>
 					{#if showSearch}
 						<X class="h-4 w-4" />
 					{:else}
@@ -253,71 +211,32 @@
 			<!-- Search Section -->
 			{#if showSearch}
 				<div class="space-y-3 rounded-lg border border-dashed p-3">
-					<div class="relative">
-						<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							type="text"
-							placeholder="Search for books..."
-							value={searchQuery}
-							oninput={(e) => {
-								const target = e.currentTarget as HTMLInputElement;
-								handleSearchInput(target.value);
-							}}
-							class="pl-9"
-						/>
-					</div>
-
-					{#if isSearching}
-						<div class="flex items-center justify-center py-4">
-							<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
-						</div>
-					{:else if searchResults.length > 0}
-						<div class="max-h-64 space-y-2 overflow-y-auto">
-							{#each searchResults.slice(0, 5) as book}
-								<div class="flex items-center gap-2 rounded-md border p-2">
-									<div class="h-12 w-8 flex-shrink-0 overflow-hidden rounded bg-muted">
-										{#if book.cover_url}
-											<img
-												src={book.cover_url}
-												alt={book.title}
-												class="h-full w-full object-cover"
-											/>
-										{:else}
-											<div class="flex h-full w-full items-center justify-center">
-												<BookMarked class="h-4 w-4 text-muted-foreground" />
-											</div>
-										{/if}
-									</div>
-									<div class="min-w-0 flex-1">
-										<p class="line-clamp-1 text-sm font-medium">{book.title}</p>
-										{#if book.authors?.length}
-											<p class="line-clamp-1 text-xs text-muted-foreground">
-												{book.authors.join(', ')}
-											</p>
-										{/if}
-									</div>
-									{#if isBookInList(book.open_library_key || book.id)}
+					<BookSearchPanel {search} maxResults={5} resultsClass="max-h-64 overflow-y-auto space-y-2">
+						<svelte:fragment slot="result" let:book>
+							{@const isAlreadyAdded = isBookInList(book)}
+							{@const bookKey = book.id || book.open_library_key}
+							<BookSearchResultRow {book}>
+								<svelte:fragment slot="actions">
+									{#if isAlreadyAdded}
 										<Badge variant="secondary" class="text-xs">Added</Badge>
 									{:else}
 										<Button
 											size="sm"
 											variant="ghost"
 											onclick={() => handleAddBook(book)}
-											disabled={addingBookId === (book.open_library_key || book.id)}
+											disabled={addingBookId === bookKey}
 										>
-											{#if addingBookId === (book.open_library_key || book.id)}
+											{#if addingBookId === bookKey}
 												<Loader2 class="h-4 w-4 animate-spin" />
 											{:else}
 												<Plus class="h-4 w-4" />
 											{/if}
 										</Button>
 									{/if}
-								</div>
-							{/each}
-						</div>
-					{:else if searchQuery.trim().length >= 2}
-						<p class="py-4 text-center text-sm text-muted-foreground">No books found</p>
-					{/if}
+								</svelte:fragment>
+							</BookSearchResultRow>
+						</svelte:fragment>
+					</BookSearchPanel>
 				</div>
 			{/if}
 
@@ -328,72 +247,39 @@
 					<p class="text-sm text-muted-foreground">No books in reading list yet</p>
 				</div>
 			{:else}
-				<div class="space-y-2">
-					{#each books as book (book.groupBookId)}
-						<div class="flex items-center gap-2 rounded-lg border bg-card p-2">
-							<div class="h-14 w-10 flex-shrink-0 overflow-hidden rounded bg-muted">
-								{#if book.cover_url}
-									<img
-										src={book.cover_url}
-										alt={book.title}
-										class="h-full w-full object-cover"
-									/>
+				<GroupReadingListItems books={books} currentBookId={group.current_book_id}>
+					<svelte:fragment slot="actions" let:book>
+						{#if group.current_book_id !== book.id}
+							<Button
+								size="sm"
+								variant="ghost"
+								title="Set as current book"
+								onclick={() => handleSetCurrentBook(book.id)}
+								disabled={settingCurrentId === book.id}
+							>
+								{#if settingCurrentId === book.id}
+									<Loader2 class="h-4 w-4 animate-spin" />
 								{:else}
-									<div class="flex h-full w-full items-center justify-center">
-										<BookMarked class="h-4 w-4 text-muted-foreground" />
-									</div>
+									<Star class="h-4 w-4" />
 								{/if}
-							</div>
-							<div class="min-w-0 flex-1">
-								<a href="/book/{book.id}" class="line-clamp-1 text-sm font-medium hover:text-primary">
-									{book.title}
-								</a>
-								{#if book.authors?.length}
-									<p class="line-clamp-1 text-xs text-muted-foreground">
-										{book.authors.join(', ')}
-									</p>
-								{/if}
-								{#if group.current_book_id === book.id}
-									<Badge variant="default" class="mt-1 text-xs">
-										<Star class="mr-1 h-3 w-3" />
-										Current
-									</Badge>
-								{/if}
-							</div>
-							<div class="flex items-center gap-1">
-								{#if group.current_book_id !== book.id}
-									<Button
-										size="sm"
-										variant="ghost"
-										title="Set as current book"
-										onclick={() => handleSetCurrentBook(book.id)}
-										disabled={settingCurrentId === book.id}
-									>
-										{#if settingCurrentId === book.id}
-											<Loader2 class="h-4 w-4 animate-spin" />
-										{:else}
-											<Star class="h-4 w-4" />
-										{/if}
-									</Button>
-								{/if}
-								<Button
-									size="sm"
-									variant="ghost"
-									class="text-destructive hover:text-destructive"
-									title="Remove from list"
-									onclick={() => handleRemoveBook(book.groupBookId)}
-									disabled={removingBookId === book.groupBookId}
-								>
-									{#if removingBookId === book.groupBookId}
-										<Loader2 class="h-4 w-4 animate-spin" />
-									{:else}
-										<Trash2 class="h-4 w-4" />
-									{/if}
-								</Button>
-							</div>
-						</div>
-					{/each}
-				</div>
+							</Button>
+						{/if}
+						<Button
+							size="sm"
+							variant="ghost"
+							class="text-destructive hover:text-destructive"
+							title="Remove from list"
+							onclick={() => handleRemoveBook(book.groupBookId)}
+							disabled={removingBookId === book.groupBookId}
+						>
+							{#if removingBookId === book.groupBookId}
+								<Loader2 class="h-4 w-4 animate-spin" />
+							{:else}
+								<Trash2 class="h-4 w-4" />
+							{/if}
+						</Button>
+					</svelte:fragment>
+				</GroupReadingListItems>
 			{/if}
 
 			<!-- Link to full page -->

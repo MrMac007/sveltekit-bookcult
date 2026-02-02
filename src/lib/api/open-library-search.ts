@@ -5,46 +5,13 @@
 
 import { buildCoverUrl } from '$lib/utils/covers';
 import { OPEN_LIBRARY_SEARCH_URL } from '$lib/constants';
-
-export interface SearchResult {
-	workKey: string; // "OL12345W" - primary identifier
-	title: string;
-	authors: string[];
-	coverUrl: string | null;
-	firstPublishYear?: number;
-	editionCount?: number;
-	ratingsAverage?: number;
-	readCount?: number;
-	// Optional fields for database results
-	id?: string; // Database UUID (only for books already in DB)
-	source?: 'database' | 'openlib';
-}
-
-interface OpenLibrarySearchDoc {
-	key: string; // "/works/OL12345W"
-	title: string;
-	author_name?: string[];
-	cover_i?: number;
-	cover_edition_key?: string;
-	isbn?: string[];
-	first_publish_year?: number;
-	edition_count?: number;
-	ratings_average?: number;
-	ratings_count?: number;
-	already_read_count?: number;
-	want_to_read_count?: number;
-	currently_reading_count?: number;
-}
-
-interface OpenLibrarySearchResponse {
-	docs: OpenLibrarySearchDoc[];
-	numFound: number;
-}
+import type { OpenLibrarySearchDoc, OpenLibrarySearchResponse } from '$lib/api/open-library';
+import type { BookSearchResult } from '$lib/types/book-search';
 
 /**
  * Search Open Library and return normalized results
  */
-export async function searchBooks(query: string, limit: number = 20): Promise<SearchResult[]> {
+export async function searchBooks(query: string, limit: number = 20): Promise<BookSearchResult[]> {
 	if (!query.trim()) {
 		return [];
 	}
@@ -92,9 +59,9 @@ export async function searchBooks(query: string, limit: number = 20): Promise<Se
 }
 
 /**
- * Normalize an Open Library search doc to our SearchResult format
+ * Normalize an Open Library search doc to our BookSearchResult format
  */
-function normalizeSearchDoc(doc: OpenLibrarySearchDoc): SearchResult | null {
+function normalizeSearchDoc(doc: OpenLibrarySearchDoc): BookSearchResult | null {
 	// Extract work key from path (e.g., "/works/OL12345W" -> "OL12345W")
 	const workKey = doc.key?.replace('/works/', '');
 
@@ -103,14 +70,12 @@ function normalizeSearchDoc(doc: OpenLibrarySearchDoc): SearchResult | null {
 	}
 
 	return {
-		workKey,
+		open_library_key: workKey,
 		title: doc.title,
 		authors: doc.author_name || [],
-		coverUrl: getCoverUrl(doc),
-		firstPublishYear: doc.first_publish_year,
-		editionCount: doc.edition_count,
-		ratingsAverage: doc.ratings_average,
-		readCount: doc.already_read_count
+		cover_url: getCoverUrl(doc),
+		first_publish_year: doc.first_publish_year,
+		source: 'openlib'
 	};
 }
 

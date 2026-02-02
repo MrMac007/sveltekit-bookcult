@@ -86,3 +86,5 @@ export type {
   OpenLibraryEdition,
   NormalizedBook as OpenLibraryNormalizedBook
 } from '$lib/api/open-library';
+
+export type { BookSearchResult, BookSearchSource } from '$lib/types/book-search';

@@ -1,17 +1,9 @@
-import { createClient } from '$lib/supabase/server'
-import { redirect, fail } from '@sveltejs/kit'
+import { fail } from '@sveltejs/kit'
+import { requireUser } from '$lib/server/auth'
 import type { Actions, PageServerLoad } from './$types'
 
 export const load: PageServerLoad = async (event) => {
-  const supabase = createClient(event)
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    throw redirect(303, '/login')
-  }
+  const { supabase, user } = await requireUser(event)
 
   const { data: completedBooks, error } = await supabase
     .from('completed_books')
@@ -65,15 +57,7 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
   remove: async (event) => {
-    const supabase = createClient(event)
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw redirect(303, '/login')
-    }
+    const { supabase, user } = await requireUser(event)
 
     const formData = await event.request.formData()
     const bookId = formData.get('bookId')
@@ -96,15 +80,7 @@ export const actions: Actions = {
   },
 
   updateDate: async (event) => {
-    const supabase = createClient(event)
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw redirect(303, '/login')
-    }
+    const { supabase, user } = await requireUser(event)
 
     const formData = await event.request.formData()
     const bookId = formData.get('bookId')

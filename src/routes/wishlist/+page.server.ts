@@ -1,5 +1,4 @@
-import { createClient } from '$lib/supabase/server'
-import { redirect } from '@sveltejs/kit'
+import { requireUser } from '$lib/server/auth'
 import type { PageServerLoad, Actions } from './$types'
 import { markComplete, removeFromWishlist } from '$lib/actions/books'
 
@@ -22,15 +21,7 @@ interface WishlistItem {
 }
 
 export const load: PageServerLoad = async (event) => {
-  const supabase = createClient(event)
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    throw redirect(303, '/login')
-  }
+  const { supabase, user } = await requireUser(event)
 
   // Get user's wishlist with book details
   const { data: wishlistBooks, error } = await supabase

@@ -5,6 +5,8 @@
 	import { toast } from 'svelte-sonner';
 	import type { BookCardData } from '$lib/types/api';
 	import type { User } from '@supabase/supabase-js';
+	import { addBookToList, ensureBookExists, removeBookFromList } from '$lib/api/books-client';
+	import { isValidUUID } from '$lib/utils/validation';
 
 	interface Props {
 		user: User;
@@ -45,45 +47,16 @@
 	});
 
 	/**
-	 * Build API request body - handles both existing books (by UUID) and new books (by Open Library key)
+	 * Check if the book is already stored in the database
 	 */
-	function buildApiRequestBody(listType: 'wishlist' | 'reading' | 'completed', completedAt?: string) {
-		const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
-
-		if (isUUID) {
-			// Book already in DB, use bookId directly
-			return { bookId: book.id, listType, completedAt };
-		}
-
-		// New book - provide workKey + bookData for creation
-		return {
-			workKey: book.open_library_key || book.id,
-			listType,
-			completedAt,
-			bookData: {
-				title: book.title,
-				authors: book.authors || [],
-				coverUrl: book.cover_url || undefined
-			}
-		};
-	}
+	const isBookInDb = (id: string) => isValidUUID(id);
 
 	async function handleAddToWishlist() {
 		if (addingToWishlist || localIsInWishlist || localIsCompleted) return;
 
 		addingToWishlist = true;
 		try {
-			const response = await fetch('/api/books/add', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(buildApiRequestBody('wishlist'))
-			});
-
-			const result = await response.json();
-
-			if (!response.ok) {
-				throw new Error(result.error || 'Failed to add to wishlist');
-			}
+			await addBookToList(book, 'wishlist');
 
 			localIsInWishlist = true;
 			toast.success('Added to wishlist');
@@ -103,38 +76,16 @@
 		try {
 			if (localIsCurrentlyReading) {
 				// Remove from currently reading - need book ID
-				const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
-				if (!isUUID) {
+				if (!isBookInDb(book.id)) {
 					throw new Error('Cannot stop reading a book not in database');
 				}
-
-				const response = await fetch('/api/books/remove', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ bookId: book.id, listType: 'reading' })
-				});
-
-				const result = await response.json();
-
-				if (!response.ok) {
-					throw new Error(result.error || 'Failed to stop reading');
-				}
+				await removeBookFromList(book.id, 'reading');
 
 				localIsCurrentlyReading = false;
 				toast.success('Stopped reading');
 			} else {
 				// Add to currently reading
-				const response = await fetch('/api/books/add', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(buildApiRequestBody('reading'))
-				});
-
-				const result = await response.json();
-
-				if (!response.ok) {
-					throw new Error(result.error || 'Failed to start reading');
-				}
+				await addBookToList(book, 'reading');
 
 				localIsCurrentlyReading = true;
 				toast.success('Started reading');
@@ -154,30 +105,7 @@
 
 		markingComplete = true;
 		try {
-			// Check if book is already in DB (UUID format)
-			const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(book.id);
-
-			let bookId: string;
-
-			if (isUUID) {
-				// Book already in DB
-				bookId = book.id;
-			} else {
-				// Need to create book first - use wishlist endpoint to just create the book
-				const response = await fetch('/api/books/add', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(buildApiRequestBody('wishlist'))
-				});
-
-				const result = await response.json();
-
-				if (!response.ok) {
-					throw new Error(result.error || 'Failed to create book');
-				}
-
-				bookId = result.bookId;
-			}
+			const bookId = await ensureBookExists(book);
 
 			// Go to rating page where user can set date and rating
 			goto(`/rate/${bookId}`);

@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
-	import { BookMarked, Plus, Trash2, Search, Loader2, X } from 'lucide-svelte';
+	import { Plus, Trash2, Loader2, X } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { useBookSearch } from '$lib/stores/book-search';
+	import BookSearchPanel from '$lib/components/books/book-search-panel.svelte';
+	import BookSearchResultRow from '$lib/components/books/book-search-result-row.svelte';
+	import { toBookCardData } from '$lib/utils/books';
+	import type { BookSearchResult } from '$lib/types/book-search';
 
 	interface UserSuggestion {
 		id: string;
@@ -27,12 +31,13 @@
 	let { groupId, suggestions, maxSuggestions = 5 }: Props = $props();
 
 	// Search state
-	let searchQuery = $state('');
-	let searchResults = $state<any[]>([]);
-	let isSearching = $state(false);
+	const search = useBookSearch({
+		autoSearch: true,
+		onError: () => toast.error('Failed to search books')
+	});
+
 	let showSearch = $state(false);
 	let selectedRank = $state<number | null>(null);
-	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Action states
 	let addingBookId = $state<string | null>(null);
@@ -56,79 +61,27 @@
 	// Book IDs already suggested
 	const suggestedBookIds = $derived(() => new Set(suggestions.map((s) => s.book_id)));
 
-	async function searchBooks() {
-		if (!searchQuery.trim() || searchQuery.length < 2) {
-			searchResults = [];
-			return;
-		}
-
-		isSearching = true;
-
-		try {
-			const response = await fetch(`/api/books/search?q=${encodeURIComponent(searchQuery)}`);
-			if (!response.ok) {
-				throw new Error('Failed to search books');
-			}
-
-			const data = await response.json();
-			// API returns { results: [...] } - transform to the format we need
-			searchResults = (data.results || []).map((r: any) => ({
-				id: r.workKey,
-				open_library_key: r.workKey,
-				title: r.title,
-				authors: r.authors || [],
-				cover_url: r.coverUrl,
-				published_date: r.firstPublishYear?.toString()
-			}));
-		} catch (error) {
-			console.error('Error searching books:', error);
-			searchResults = [];
-			toast.error('Failed to search books');
-		} finally {
-			isSearching = false;
-		}
-	}
-
-	function handleSearchInput(value: string) {
-		searchQuery = value;
-
-		if (debounceTimer) {
-			clearTimeout(debounceTimer);
-		}
-
-		if (!value.trim()) {
-			searchResults = [];
-			return;
-		}
-
-		debounceTimer = setTimeout(() => {
-			searchBooks();
-		}, 500);
-	}
-
 	function openSearchForRank(rank: number) {
 		selectedRank = rank;
 		showSearch = true;
-		searchQuery = '';
-		searchResults = [];
+		search.reset();
 	}
 
 	function closeSearch() {
 		showSearch = false;
 		selectedRank = null;
-		searchQuery = '';
-		searchResults = [];
+		search.reset();
 	}
 
-	async function handleAddBook(book: any) {
+	async function handleAddBook(book: BookSearchResult) {
 		if (addingBookId || selectedRank === null) return;
 
-		addingBookId = book.id || book.google_books_id;
+		addingBookId = book.id || book.open_library_key;
 
 		try {
 			const formData = new FormData();
 			formData.append('groupId', groupId);
-			formData.append('bookData', JSON.stringify(book));
+			formData.append('bookData', JSON.stringify(toBookCardData(book)));
 			formData.append('rank', selectedRank.toString());
 
 			const response = await fetch('?/addSuggestion', {
@@ -292,47 +245,12 @@
 				</Button>
 			</div>
 
-			<div class="relative">
-				<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					type="text"
-					placeholder="Search for books..."
-					value={searchQuery}
-					oninput={(e) => {
-						const target = e.currentTarget as HTMLInputElement;
-						handleSearchInput(target.value);
-					}}
-					class="pl-9"
-				/>
-			</div>
-
-			{#if isSearching}
-				<div class="flex items-center justify-center py-4">
-					<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
-				</div>
-			{:else if searchResults.length > 0}
-				<div class="max-h-64 space-y-2 overflow-y-auto">
-					{#each searchResults.slice(0, 5) as book}
-						{@const bookId = book.id || book.google_books_id}
-						{@const isAlreadySuggested = suggestedBookIds().has(bookId)}
-						<div class="flex items-center gap-2 rounded-md border p-2">
-							<div class="h-12 w-8 flex-shrink-0 overflow-hidden rounded bg-muted">
-								{#if book.cover_url}
-									<img src={book.cover_url} alt={book.title} class="h-full w-full object-cover" />
-								{:else}
-									<div class="flex h-full w-full items-center justify-center">
-										<BookMarked class="h-4 w-4 text-muted-foreground" />
-									</div>
-								{/if}
-							</div>
-							<div class="min-w-0 flex-1">
-								<p class="line-clamp-1 text-sm font-medium">{book.title}</p>
-								{#if book.authors?.length}
-									<p class="line-clamp-1 text-xs text-muted-foreground">
-										{book.authors.join(', ')}
-									</p>
-								{/if}
-							</div>
+			<BookSearchPanel {search} maxResults={5} resultsClass="max-h-64 overflow-y-auto space-y-2">
+				<svelte:fragment slot="result" let:book>
+					{@const bookId = book.id || book.open_library_key}
+					{@const isAlreadySuggested = suggestedBookIds().has(bookId)}
+					<BookSearchResultRow {book}>
+						<svelte:fragment slot="actions">
 							{#if isAlreadySuggested}
 								<Badge variant="secondary" class="text-xs">In List</Badge>
 							{:else}
@@ -349,12 +267,10 @@
 									{/if}
 								</Button>
 							{/if}
-						</div>
-					{/each}
-				</div>
-			{:else if searchQuery.trim().length >= 2}
-				<p class="py-4 text-center text-sm text-muted-foreground">No books found</p>
-			{/if}
+						</svelte:fragment>
+					</BookSearchResultRow>
+				</svelte:fragment>
+			</BookSearchPanel>
 		</div>
 	{/if}
 

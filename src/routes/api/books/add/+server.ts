@@ -1,6 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '$lib/supabase/server';
+import { findOrCreateBook } from '$lib/api/book-helpers';
+import type { BookCardData } from '$lib/types/api';
 import {
 	addToWishlistInternal,
 	startReadingInternal,
@@ -11,7 +13,10 @@ interface BookData {
 	title: string;
 	authors: string[];
 	coverUrl?: string;
+	cover_url?: string | null;
 	firstPublishYear?: number;
+	first_publish_year?: number;
+	published_date?: string | null;
 }
 
 interface AddBookRequest {
@@ -62,8 +67,19 @@ export const POST: RequestHandler = async (event) => {
 			// Book already exists in DB
 			bookId = providedBookId;
 		} else {
-			// Find/create book by work key
-			bookId = await getOrCreateBook(workKey!, bookData!, supabase);
+			const normalized: BookCardData = {
+				id: workKey!,
+				open_library_key: workKey!,
+				title: bookData!.title,
+				authors: bookData!.authors || [],
+				cover_url: bookData!.cover_url ?? bookData!.coverUrl ?? null,
+				published_date:
+					bookData!.published_date ??
+					(bookData!.firstPublishYear ? String(bookData!.firstPublishYear) : undefined)
+			};
+
+			// Find/create book using shared helper
+			bookId = await findOrCreateBook(normalized, supabase);
 		}
 
 		// Step 2: Add to the requested list using unified internal helpers
@@ -75,61 +91,6 @@ export const POST: RequestHandler = async (event) => {
 		return json({ error: 'Failed to add book' }, { status: 500 });
 	}
 };
-
-/**
- * Get existing book by work key or create a new one
- */
-async function getOrCreateBook(
-	workKey: string,
-	bookData: BookData,
-	supabase: ReturnType<typeof createClient>
-): Promise<string> {
-	const client = supabase as any;
-
-	// Check if book exists by work key
-	const { data: existing } = await client
-		.from('books')
-		.select('id')
-		.eq('open_library_key', workKey)
-		.single();
-
-	if (existing?.id) {
-		return existing.id;
-	}
-
-	// Create new book
-	const { data: newBook, error } = await client
-		.from('books')
-		.insert({
-			open_library_key: workKey,
-			title: bookData.title,
-			authors: bookData.authors,
-			cover_url: bookData.coverUrl,
-			first_publish_year: bookData.firstPublishYear,
-			ai_enhanced: false,
-			last_updated: new Date().toISOString()
-		})
-		.select('id')
-		.single();
-
-	if (error) {
-		// Handle race condition - another request may have created the book
-		if (error.code === '23505') {
-			const { data: raceWinner } = await client
-				.from('books')
-				.select('id')
-				.eq('open_library_key', workKey)
-				.single();
-
-			if (raceWinner?.id) {
-				return raceWinner.id;
-			}
-		}
-		throw error;
-	}
-
-	return newBook.id;
-}
 
 /**
  * Add book to user's list using unified internal helpers

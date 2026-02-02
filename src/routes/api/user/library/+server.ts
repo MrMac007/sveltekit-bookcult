@@ -9,7 +9,7 @@ export interface LibraryStatus {
 }
 
 export interface UserLibraryResponse {
-	books: { workKey: string; status: LibraryStatus }[];
+	books: { open_library_key: string; status: LibraryStatus }[];
 }
 
 export const GET: RequestHandler = async (event) => {
@@ -73,7 +73,7 @@ export const GET: RequestHandler = async (event) => {
 		}
 
 		const books = Array.from(statusMap.entries()).map(([workKey, status]) => ({
-			workKey,
+			open_library_key: workKey,
 			status
 		}));
 

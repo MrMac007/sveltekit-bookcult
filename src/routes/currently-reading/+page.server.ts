@@ -1,5 +1,5 @@
-import { createClient } from '$lib/supabase/server'
-import { redirect, fail } from '@sveltejs/kit'
+import { fail } from '@sveltejs/kit'
+import { requireUser } from '$lib/server/auth'
 import type { PageServerLoad, Actions } from './$types'
 import { markComplete } from '$lib/actions/books'
 
@@ -20,15 +20,7 @@ interface CurrentlyReadingItem {
 }
 
 export const load: PageServerLoad = async (event) => {
-  const supabase = createClient(event)
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    throw redirect(303, '/login')
-  }
+  const { supabase, user } = await requireUser(event)
 
   const { data: currentlyReading, error } = await supabase
     .from('currently_reading')
@@ -65,15 +57,7 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
   remove: async (event) => {
-    const supabase = createClient(event)
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw redirect(303, '/login')
-    }
+    const { supabase, user } = await requireUser(event)
 
     const formData = await event.request.formData()
     const recordId = formData.get('recordId')

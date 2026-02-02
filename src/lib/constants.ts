@@ -52,6 +52,9 @@ export const BOOK_CACHE_SECONDS = 30 * 24 * 60 * 60;
 /** Default number of search results to show */
 export const DEFAULT_SEARCH_LIMIT = 20;
 
+/** Minimum characters required before triggering a search */
+export const MIN_SEARCH_QUERY_LEN = 2;
+
 /** Maximum authors to fetch details for */
 export const MAX_AUTHORS_TO_FETCH = 5;
 

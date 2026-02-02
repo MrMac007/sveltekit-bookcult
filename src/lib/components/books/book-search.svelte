@@ -7,7 +7,9 @@
 	import { toast } from 'svelte-sonner';
 	import BookCard from './book-card.svelte';
 	import type { BookCardData } from '$lib/types/api';
-	import type { SearchResult } from '$lib/api/open-library-search';
+	import { useBookSearch } from '$lib/stores/book-search';
+	import { toBookCardData } from '$lib/utils/books';
+	import { addBookToList, ensureBookExists } from '$lib/api/books-client';
 
 	interface Props {
 		userId: string;
@@ -15,12 +17,18 @@
 
 	let { userId }: Props = $props();
 
-	// Search state
-	let searchQuery = $state('');
-	let searchResults = $state<SearchResult[]>([]);
-	let isSearching = $state(false);
 	let hasSearched = $state(false);
 	let searchError = $state<string | null>(null);
+
+	const search = useBookSearch({
+		autoSearch: false,
+		minQueryLength: 1,
+		onError: (message) => {
+			searchError = message || 'Failed to search books. Please try again.';
+		}
+	});
+
+	const { query, results, isSearching, setQuery, search: runSearch, reset } = search;
 
 	// User library state - keyed by work key for O(1) lookup
 	let userLibrary = $state<Map<string, LibraryStatus>>(new Map());
@@ -48,7 +56,7 @@
 
 			const newLibrary = new Map<string, LibraryStatus>();
 			for (const book of data.books || []) {
-				newLibrary.set(book.workKey, book.status);
+				newLibrary.set(book.open_library_key, book.status);
 			}
 			userLibrary = newLibrary;
 		} catch (error) {
@@ -67,10 +75,11 @@
 	 * Handle search input
 	 */
 	function handleSearchInput(value: string) {
-		searchQuery = value;
+		setQuery(value);
+		searchError = null;
 		if (!value.trim()) {
-			searchResults = [];
 			hasSearched = false;
+			searchError = null;
 		}
 	}
 
@@ -78,53 +87,28 @@
 	 * Perform search
 	 */
 	async function performSearch() {
-		const query = searchQuery.trim();
-		if (!query) {
-			searchResults = [];
+		const currentQuery = $query.trim();
+		if (!currentQuery) {
+			reset();
 			hasSearched = false;
 			searchError = null;
 			return;
 		}
 
-		isSearching = true;
 		hasSearched = true;
 		searchError = null;
 
 		try {
-			const response = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
-			if (!response.ok) {
-				throw new Error('Failed to search books');
-			}
-
-			const data = await response.json();
-			searchResults = data.results || [];
+			await runSearch(currentQuery);
 		} catch (error) {
 			console.error('Search error:', error);
-			searchResults = [];
 			searchError = 'Failed to search books. Please try again.';
-		} finally {
-			isSearching = false;
 		}
 	}
 
 	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		performSearch();
-	}
-
-	/**
-	 * Convert SearchResult to BookCardData for the BookCard component
-	 */
-	function toBookCardData(result: SearchResult): BookCardData {
-		return {
-			id: result.workKey,
-			open_library_key: result.workKey,
-			title: result.title,
-			authors: result.authors,
-			cover_url: result.coverUrl,
-			published_date: result.firstPublishYear?.toString(),
-			source: 'openlib'
-		};
 	}
 
 	/**
@@ -142,27 +126,10 @@
 		userLibrary = new Map(userLibrary);
 
 		try {
-			const result = searchResults.find((r) => r.workKey === workKey);
+			const result = $results.find((r) => r.open_library_key === workKey);
 			if (!result) return;
 
-			const response = await fetch('/api/books/add', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					workKey,
-					listType: 'wishlist',
-					bookData: {
-						title: result.title,
-						authors: result.authors,
-						coverUrl: result.coverUrl,
-						firstPublishYear: result.firstPublishYear
-					}
-				})
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to add to wishlist');
-			}
+			await addBookToList(result, 'wishlist');
 		} catch (error) {
 			console.error('Error adding to wishlist:', error);
 			// Rollback optimistic update
@@ -181,37 +148,14 @@
 		const workKey = book.open_library_key || book.id;
 		if (!workKey) return;
 
-		const result = searchResults.find((r) => r.workKey === workKey);
+		const result = $results.find((r) => r.open_library_key === workKey);
 		if (!result) return;
 
 		isAddingBook = workKey;
 
 		try {
-			// Create the book first (using wishlist to just ensure it exists in DB)
-			const response = await fetch('/api/books/add', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					workKey,
-					listType: 'wishlist',
-					bookData: {
-						title: result.title,
-						authors: result.authors,
-						coverUrl: result.coverUrl,
-						firstPublishYear: result.firstPublishYear
-					}
-				})
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to create book');
-			}
-
-			const data = await response.json();
-			if (data.bookId) {
-				// Navigate to rating page where user can set date and rating
-				goto(`/rate/${data.bookId}`);
-			}
+			const bookId = await ensureBookExists(result);
+			goto(`/rate/${bookId}`);
 		} catch (error) {
 			console.error('Error navigating to rating page:', error);
 			toast.error('Failed to open rating page. Please try again.');
@@ -231,17 +175,17 @@
 						type="search"
 						placeholder="Search by title (press Enter or click Search)..."
 						class="h-12 pl-9"
-						value={searchQuery}
+						value={$query}
 						oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
 					/>
-					{#if isSearching}
+					{#if $isSearching}
 						<Loader2
 							class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
 						/>
 					{/if}
 				</div>
-				<Button type="submit" size="lg" disabled={isSearching || !searchQuery.trim()}>
-					{#if isSearching}
+				<Button type="submit" size="lg" disabled={$isSearching || !$query.trim()}>
+					{#if $isSearching}
 						<Loader2 class="h-4 w-4 animate-spin" />
 					{:else}
 						Search
@@ -251,13 +195,13 @@
 		</div>
 	</form>
 
-	{#if searchResults.length > 0}
+	{#if $results.length > 0}
 		<div class="space-y-4">
 			<h2 class="text-lg font-semibold">
-				Found {searchResults.length} {searchResults.length === 1 ? 'book' : 'books'}
+				Found {$results.length} {$results.length === 1 ? 'book' : 'books'}
 			</h2>
-			{#each searchResults as result (result.workKey)}
-				{@const status = getStatus(result.workKey)}
+			{#each $results as result (result.open_library_key)}
+				{@const status = getStatus(result.open_library_key)}
 				<BookCard
 					book={toBookCardData(result)}
 					onAddToWishlist={handleAddToWishlist}
@@ -277,10 +221,10 @@
 				Try again
 			</Button>
 		</div>
-	{:else if !isSearching && hasSearched && searchResults.length === 0}
+	{:else if !$isSearching && hasSearched && $results.length === 0}
 		<div class="py-12 text-center">
 			<p class="text-muted-foreground">
-				No books found for "{searchQuery}". Try a different search term.
+				No books found for "{$query}". Try a different search term.
 			</p>
 		</div>
 	{/if}

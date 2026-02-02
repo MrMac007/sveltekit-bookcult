@@ -2,6 +2,8 @@ import { openLibraryAPI } from './open-library';
 import type { Book } from '$lib/types/api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/types/database';
+import type { BookSearchResult } from '$lib/types/book-search';
+import { searchBooksUnified } from '$lib/server/books/search';
 
 type BookRow = Database['public']['Tables']['books']['Row'];
 
@@ -185,6 +187,17 @@ export async function searchBooks(
 		// Fall back to cached results if API fails
 		return cachedBooks || [];
 	}
+}
+
+/**
+ * Lightweight search for UI contexts - reuses shared search logic and standardized result shape.
+ */
+export async function searchBooksLite(
+	query: string,
+	supabase: SupabaseClient<Database>,
+	maxResults: number = 20
+): Promise<BookSearchResult[]> {
+	return searchBooksUnified(supabase, query, maxResults);
 }
 
 /**

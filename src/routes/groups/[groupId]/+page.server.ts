@@ -44,6 +44,7 @@ interface GroupBook {
   books: {
     id: string
     google_books_id: string | null
+    open_library_key: string | null
     title: string
     authors: string[]
     cover_url: string | null
@@ -80,6 +81,7 @@ export const load: PageServerLoad = async (event) => {
       books (
         id,
         google_books_id,
+        open_library_key,
         title,
         authors,
         cover_url,
@@ -272,6 +274,7 @@ export const load: PageServerLoad = async (event) => {
       id: item.books!.id,
       groupBookId: item.id,
       google_books_id: item.books!.google_books_id,
+      open_library_key: item.books!.open_library_key,
       title: item.books!.title,
       authors: item.books!.authors,
       cover_url: item.books!.cover_url,
