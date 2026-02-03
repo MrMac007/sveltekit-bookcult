@@ -19,6 +19,7 @@ interface UseBookSearchOptions {
 	debounceMs?: number;
 	minQueryLength?: number;
 	autoSearch?: boolean;
+	cacheMs?: number;
 	onError?: (message: string) => void;
 }
 
@@ -29,6 +30,7 @@ export function useBookSearch(options: UseBookSearchOptions = {}): BookSearchCon
 		debounceMs = 500,
 		minQueryLength = MIN_SEARCH_QUERY_LEN,
 		autoSearch = true,
+		cacheMs = 5 * 60 * 1000,
 		onError
 	} = options;
 
@@ -40,6 +42,7 @@ export function useBookSearch(options: UseBookSearchOptions = {}): BookSearchCon
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let abortController: AbortController | null = null;
 	let activeRequestId = 0;
+	const cache = new Map<string, { results: BookSearchResult[]; timestamp: number }>();
 
 	function clearDebounce() {
 		if (debounceTimer) {
@@ -52,6 +55,15 @@ export function useBookSearch(options: UseBookSearchOptions = {}): BookSearchCon
 		const trimmed = rawQuery.trim();
 		if (!trimmed || trimmed.length < minQueryLength) {
 			results.set([]);
+			error.set(null);
+			isSearching.set(false);
+			return;
+		}
+
+		const cacheKey = trimmed.toLowerCase();
+		const cached = cache.get(cacheKey);
+		if (cached && Date.now() - cached.timestamp < cacheMs) {
+			results.set(cached.results);
 			error.set(null);
 			isSearching.set(false);
 			return;
@@ -82,7 +94,9 @@ export function useBookSearch(options: UseBookSearchOptions = {}): BookSearchCon
 
 			const data = await response.json();
 			if (requestId !== activeRequestId) return;
-			results.set(data.results || []);
+			const nextResults = data.results || [];
+			results.set(nextResults);
+			cache.set(cacheKey, { results: nextResults, timestamp: Date.now() });
 		} catch (err) {
 			if (requestId !== activeRequestId) return;
 			if (err instanceof DOMException && err.name === 'AbortError') {
