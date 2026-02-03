@@ -3,6 +3,14 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import Dialog from '$lib/components/ui/dialog.svelte';
+	import DialogContent from '$lib/components/ui/dialog-content.svelte';
+	import DialogHeader from '$lib/components/ui/dialog-header.svelte';
+	import DialogTitle from '$lib/components/ui/dialog-title.svelte';
+	import DialogDescription from '$lib/components/ui/dialog-description.svelte';
+	import DialogFooter from '$lib/components/ui/dialog-footer.svelte';
+	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import { Star, Sparkles, Loader2, Tag, Calendar } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { StarRating } from '$lib/components/ui/star-rating';
@@ -62,6 +70,59 @@
 	}
 
 	let isEnhancing = $state(false);
+	let enhanceDialogOpen = $state(false);
+
+	let enhanceForm = $state({
+		title: '',
+		authors: '',
+		categories: '',
+		description: '',
+		published_date: '',
+		publisher: '',
+		isbn_13: '',
+		isbn_10: ''
+	});
+
+	function openEnhanceDialog() {
+		const publishedYear =
+			book.published_date && book.published_date.length > 4
+				? String(new Date(book.published_date).getFullYear())
+				: book.published_date || '';
+
+		enhanceForm = {
+			title: book.title || '',
+			authors: (book.authors || []).join(', '),
+			categories: (book.categories || []).join(', '),
+			description: book.description || '',
+			published_date: publishedYear,
+			publisher: book.publisher || '',
+			isbn_13: book.isbn_13 || '',
+			isbn_10: book.isbn_10 || ''
+		};
+		enhanceDialogOpen = true;
+	}
+
+	function buildEnhanceInput() {
+		const authors = enhanceForm.authors
+			.split(',')
+			.map((item) => item.trim())
+			.filter(Boolean);
+		const categories = enhanceForm.categories
+			.split(',')
+			.map((item) => item.trim())
+			.filter(Boolean);
+
+		return {
+			title: enhanceForm.title.trim(),
+			authors,
+			categories,
+			description: enhanceForm.description.trim(),
+			published_date: enhanceForm.published_date.trim(),
+			publisher: enhanceForm.publisher.trim(),
+			isbn_13: enhanceForm.isbn_13.trim(),
+			isbn_10: enhanceForm.isbn_10.trim()
+		};
+	}
 
 	async function handleEnhance() {
 		if (!book.id || isEnhancing) return;
@@ -70,13 +131,14 @@
 			const response = await fetch('/api/books/enhance', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ bookId: book.id }),
+				body: JSON.stringify({ bookId: book.id, input: buildEnhanceInput() }),
 				credentials: 'same-origin'
 			});
 			const result = await response.json();
 			if (response.ok && result.success) {
 				toast.success('Book enhanced with AI');
 				await invalidateAll();
+				enhanceDialogOpen = false;
 			} else {
 				console.error('Enhance error:', result.error);
 				toast.error(result.error || 'Failed to enhance book');
@@ -228,20 +290,12 @@
 						variant="outline"
 						size="sm"
 						class="gap-1.5"
-						onclick={handleEnhance}
-						disabled={isEnhancing}
+						onclick={openEnhanceDialog}
 					>
-						{#if isEnhancing}
-							<span class="flex items-center gap-1.5">
-								<Loader2 class="h-3.5 w-3.5 animate-spin" />
-								Enhancing...
-							</span>
-						{:else}
-							<span class="flex items-center gap-1.5">
-								<Sparkles class="h-3.5 w-3.5" />
-								Enhance with AI
-							</span>
-						{/if}
+						<span class="flex items-center gap-1.5">
+							<Sparkles class="h-3.5 w-3.5" />
+							Enhance with AI
+						</span>
 					</Button>
 				{/if}
 			</div>
@@ -311,3 +365,74 @@
 		</Card>
 	{/if}
 </div>
+
+{#if !book.ai_enhanced}
+	<Dialog bind:open={enhanceDialogOpen}>
+		<DialogContent class="max-w-2xl w-full">
+			<DialogHeader>
+				<DialogTitle>Review AI Enhancement Input</DialogTitle>
+				<DialogDescription>
+					We’ll use this data to improve accuracy. Update anything that looks wrong.
+				</DialogDescription>
+			</DialogHeader>
+
+			<div class="grid gap-4 pt-2">
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Title</label>
+					<Input bind:value={enhanceForm.title} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Authors (comma-separated)</label>
+					<Input bind:value={enhanceForm.authors} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Categories (comma-separated)</label>
+					<Input bind:value={enhanceForm.categories} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Published Year (YYYY)</label>
+					<Input bind:value={enhanceForm.published_date} placeholder="e.g. 1997" />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Publisher</label>
+					<Input bind:value={enhanceForm.publisher} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">ISBN-13</label>
+					<Input bind:value={enhanceForm.isbn_13} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">ISBN-10</label>
+					<Input bind:value={enhanceForm.isbn_10} />
+				</div>
+
+				<div class="grid gap-2">
+					<label class="text-sm font-medium">Description</label>
+					<Textarea bind:value={enhanceForm.description} rows={6} />
+				</div>
+			</div>
+
+			<DialogFooter class="mt-4">
+				<Button variant="outline" onclick={() => (enhanceDialogOpen = false)} disabled={isEnhancing}>
+					Cancel
+				</Button>
+				<Button onclick={handleEnhance} disabled={isEnhancing}>
+					{#if isEnhancing}
+						<span class="flex items-center gap-1.5">
+							<Loader2 class="h-4 w-4 animate-spin" />
+							Enhancing...
+						</span>
+					{:else}
+						Run Enhancement
+					{/if}
+				</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
+{/if}

@@ -1,5 +1,6 @@
 import { createClient } from '$lib/supabase/server'
-import { enhanceBookMetadata, validateEnhancedMetadata } from '$lib/ai/book-enhancer'
+import { enhanceBookMetadata, validateEnhancedMetadata, type BookEnhancementInput } from '$lib/ai/book-enhancer'
+import { openLibraryAPI } from '$lib/api/open-library'
 import type { RequestEvent } from '@sveltejs/kit'
 
 export interface EnhanceBookResult {
@@ -8,7 +9,36 @@ export interface EnhanceBookResult {
   message?: string
 }
 
-export async function enhanceBook(event: RequestEvent, bookId: string): Promise<EnhanceBookResult> {
+function mergeWithFallback<T>(value: T | undefined, fallback: T | undefined): T | undefined {
+  return value !== undefined && value !== null && value !== '' ? value : fallback
+}
+
+function cleanOverrides(overrides?: Partial<BookEnhancementInput>): Partial<BookEnhancementInput> | undefined {
+  if (!overrides) return undefined
+
+  const cleaned: Partial<BookEnhancementInput> = {}
+
+  if (overrides.title && overrides.title.trim()) cleaned.title = overrides.title.trim()
+  if (overrides.authors && overrides.authors.length > 0) {
+    cleaned.authors = overrides.authors.map((a) => a.trim()).filter(Boolean)
+  }
+  if (overrides.description && overrides.description.trim()) cleaned.description = overrides.description.trim()
+  if (overrides.categories && overrides.categories.length > 0) {
+    cleaned.categories = overrides.categories.map((c) => c.trim()).filter(Boolean)
+  }
+  if (overrides.published_date && overrides.published_date.trim()) cleaned.published_date = overrides.published_date.trim()
+  if (overrides.publisher && overrides.publisher.trim()) cleaned.publisher = overrides.publisher.trim()
+  if (overrides.isbn_13 && overrides.isbn_13.trim()) cleaned.isbn_13 = overrides.isbn_13.trim()
+  if (overrides.isbn_10 && overrides.isbn_10.trim()) cleaned.isbn_10 = overrides.isbn_10.trim()
+
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined
+}
+
+export async function enhanceBook(
+  event: RequestEvent,
+  bookId: string,
+  overrides?: Partial<BookEnhancementInput>
+): Promise<EnhanceBookResult> {
   try {
     const supabase = createClient(event)
     const db = supabase as any
@@ -49,7 +79,7 @@ export async function enhanceBook(event: RequestEvent, bookId: string): Promise<
       }
     }
 
-    const enhanced = await enhanceBookMetadata({
+    let baseInput: BookEnhancementInput = {
       title: book.title,
       authors: book.authors || [],
       description: book.description,
@@ -58,7 +88,38 @@ export async function enhanceBook(event: RequestEvent, bookId: string): Promise<
       publisher: book.publisher,
       isbn_13: book.isbn_13,
       isbn_10: book.isbn_10,
-    })
+    }
+
+    // Fill missing fields from Open Library (best-effort)
+    if (book.open_library_key) {
+      try {
+        const olBook = await openLibraryAPI.getBookDetails(book.open_library_key)
+        if (olBook) {
+          baseInput = {
+            title: mergeWithFallback(baseInput.title, olBook.title) || baseInput.title,
+            authors: baseInput.authors?.length ? baseInput.authors : olBook.authors || [],
+            description: mergeWithFallback(baseInput.description, olBook.description),
+            categories: baseInput.categories?.length ? baseInput.categories : olBook.categories || [],
+            published_date: mergeWithFallback(baseInput.published_date, olBook.published_date),
+            publisher: mergeWithFallback(baseInput.publisher, olBook.publisher),
+            isbn_13: mergeWithFallback(baseInput.isbn_13, olBook.isbn_13),
+            isbn_10: mergeWithFallback(baseInput.isbn_10, olBook.isbn_10),
+          }
+        }
+      } catch (error) {
+        console.warn('[enhance-book] Failed to fetch Open Library details, continuing with local data')
+      }
+    }
+
+    const cleanedOverrides = cleanOverrides(overrides)
+    if (cleanedOverrides) {
+      baseInput = {
+        ...baseInput,
+        ...cleanedOverrides,
+      }
+    }
+
+    const enhanced = await enhanceBookMetadata(baseInput)
 
     if (!validateEnhancedMetadata(enhanced)) {
       console.error('[enhance-book] Enhanced metadata failed validation')
