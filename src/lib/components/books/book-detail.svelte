@@ -366,7 +366,7 @@
 </div>
 
 <Dialog bind:open={enhanceDialogOpen}>
-	<DialogContent class="max-w-2xl w-full">
+<DialogContent class="max-w-2xl w-full max-h-[90vh] flex flex-col">
 		<DialogHeader>
 			<DialogTitle>Review AI Enhancement Input</DialogTitle>
 			<DialogDescription>
@@ -374,7 +374,7 @@
 			</DialogDescription>
 		</DialogHeader>
 
-		<div class="grid gap-4 pt-2">
+		<div class="grid gap-4 pt-2 overflow-y-auto pr-1 flex-1 min-h-0">
 			<div class="grid gap-2">
 				<label class="text-sm font-medium">Title</label>
 				<Input bind:value={enhanceForm.title} />
