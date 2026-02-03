@@ -123,13 +123,18 @@ export async function enhanceBook(
       }
     }
 
+    const finalCategories = enhanced.categories?.length ? enhanced.categories : baseInput.categories || []
+    const finalDescription = enhanced.description || baseInput.description || book.description
+    const finalPublishedDate = baseInput.published_date || book.published_date
+    const finalPublisher = baseInput.publisher || book.publisher
+
     const { error: updateError } = await db
       .from('books')
       .update({
-        categories: enhanced.categories,
-        description: enhanced.description,
-        published_date: enhanced.published_date,
-        publisher: enhanced.publisher || book.publisher,
+        categories: finalCategories,
+        description: finalDescription,
+        published_date: finalPublishedDate,
+        publisher: finalPublisher,
         ai_enhanced: true,
         ai_enhanced_at: new Date().toISOString(),
       })

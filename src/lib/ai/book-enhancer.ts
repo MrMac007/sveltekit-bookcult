@@ -52,6 +52,11 @@ export async function enhanceBookMetadata(
 function buildEnhancementPrompt(book: BookEnhancementInput): string {
 	return `You are a book metadata expert. Your task is to normalize and enhance the following book's metadata to ensure consistency and accuracy.
 
+IMPORTANT CONTEXT:
+- You do NOT have web access and may not know recently published books.
+- Use ONLY the information provided below. Do NOT invent facts, plot details, or publication info.
+- If a field cannot be determined from the provided data, leave it empty ("" for strings, [] for arrays).
+
 BOOK INFORMATION:
 Title: ${book.title}
 Authors: ${book.authors.join(', ')}
@@ -80,14 +85,13 @@ Generate normalized, consistent metadata for this book following these strict re
    - Make it compelling and informative
 
 3. PUBLISHED_DATE (YYYY format):
-   - Find the ORIGINAL first publication year (not reprints or special editions)
+   - Use the ORIGINAL first publication year only if explicitly provided above
    - Format as 4-digit year only (e.g., "1960" not "1960-07-11")
-   - If exact year unknown, provide best estimate
+   - If unknown, return empty string
 
 4. PUBLISHER (optional):
-   - Provide the major publisher name (normalized)
-   - Use standard publisher names
-   - If unknown or unclear, omit this field
+   - Provide the major publisher name (normalized) only if explicitly provided above
+   - If unknown or unclear, return empty string
 
 RESPOND IN VALID JSON FORMAT ONLY (no markdown, no code blocks):
 {
@@ -100,7 +104,8 @@ RESPOND IN VALID JSON FORMAT ONLY (no markdown, no code blocks):
 IMPORTANT:
 - Respond with ONLY the JSON object, nothing else
 - Ensure the description is in ENGLISH (translate if necessary)
-- Aim for 150-200 words in the description (100-250 acceptable)`;
+- Aim for 150-200 words in the description (100-250 acceptable)
+- If you do not have enough information, return an empty description and empty categories rather than guessing`;
 }
 
 function parseEnhancementResponse(responseText: string): EnhancedBookMetadata {
@@ -113,37 +118,36 @@ function parseEnhancementResponse(responseText: string): EnhancedBookMetadata {
 
 		const parsed = JSON.parse(cleanedText);
 
-		if (
-			!Array.isArray(parsed.categories) ||
-			parsed.categories.length < 2 ||
-			parsed.categories.length > 3
-		) {
-			throw new Error('Invalid categories: must be array of 2-3 items');
+		if (!Array.isArray(parsed.categories) || parsed.categories.length > 3) {
+			throw new Error('Invalid categories: must be array of 0-3 items');
 		}
 
-		if (!parsed.description || typeof parsed.description !== 'string') {
+		if (typeof parsed.description !== 'string') {
 			throw new Error('Invalid description: must be a string');
 		}
 
-		const wordCount = parsed.description.split(/\s+/).length;
-		if (wordCount < 100 || wordCount > 250) {
-			console.warn(
-				`[AI-Enhancer] Description word count (${wordCount}) outside acceptable range (100-250)`
-			);
+		const descriptionText = parsed.description.trim();
+		if (descriptionText) {
+			const wordCount = descriptionText.split(/\s+/).length;
+			if (wordCount < 100 || wordCount > 250) {
+				console.warn(
+					`[AI-Enhancer] Description word count (${wordCount}) outside acceptable range (100-250)`
+				);
+			}
 		}
 
-		if (!parsed.published_date || typeof parsed.published_date !== 'string') {
+		if (typeof parsed.published_date !== 'string') {
 			throw new Error('Invalid published_date: must be a string');
 		}
 
-		if (!/^\d{4}$/.test(parsed.published_date)) {
+		if (parsed.published_date && !/^\d{4}$/.test(parsed.published_date)) {
 			throw new Error('Invalid published_date format: must be YYYY');
 		}
 
 		return {
 			categories: parsed.categories.slice(0, 3),
-			description: parsed.description.trim(),
-			published_date: parsed.published_date,
+			description: descriptionText,
+			published_date: parsed.published_date.trim(),
 			publisher: parsed.publisher ? String(parsed.publisher).trim() : undefined
 		};
 	} catch (error) {
@@ -154,19 +158,21 @@ function parseEnhancementResponse(responseText: string): EnhancedBookMetadata {
 }
 
 export function validateEnhancedMetadata(metadata: EnhancedBookMetadata): boolean {
-	if (metadata.categories.length < 2 || metadata.categories.length > 3) {
+	if (metadata.categories.length > 3) {
 		console.error('[AI-Enhancer] Invalid categories count:', metadata.categories.length);
 		return false;
 	}
 
-	const wordCount = metadata.description.split(/\s+/).length;
-	// Relaxed validation: accept 100-250 words (AI sometimes produces slightly shorter/longer)
-	if (wordCount < 100 || wordCount > 250) {
-		console.error('[AI-Enhancer] Description word count out of range:', wordCount);
-		return false;
+	if (metadata.description) {
+		const wordCount = metadata.description.split(/\s+/).length;
+		// Relaxed validation: accept 100-250 words (AI sometimes produces slightly shorter/longer)
+		if (wordCount < 100 || wordCount > 250) {
+			console.error('[AI-Enhancer] Description word count out of range:', wordCount);
+			return false;
+		}
 	}
 
-	if (!/^\d{4}$/.test(metadata.published_date)) {
+	if (metadata.published_date && !/^\d{4}$/.test(metadata.published_date)) {
 		console.error('[AI-Enhancer] Invalid year format:', metadata.published_date);
 		return false;
 	}
