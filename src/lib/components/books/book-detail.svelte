@@ -285,19 +285,18 @@
 						<Sparkles class="h-3 w-3" />
 						AI Enhanced
 					</Badge>
-				{:else}
-					<Button
-						variant="outline"
-						size="sm"
-						class="gap-1.5"
-						onclick={openEnhanceDialog}
-					>
-						<span class="flex items-center gap-1.5">
-							<Sparkles class="h-3.5 w-3.5" />
-							Enhance with AI
-						</span>
-					</Button>
 				{/if}
+				<Button
+					variant="outline"
+					size="sm"
+					class="gap-1.5"
+					onclick={openEnhanceDialog}
+				>
+					<span class="flex items-center gap-1.5">
+						<Sparkles class="h-3.5 w-3.5" />
+						Enhance with AI
+					</span>
+				</Button>
 			</div>
 
 			{#if book.description}
@@ -366,73 +365,71 @@
 	{/if}
 </div>
 
-{#if !book.ai_enhanced}
-	<Dialog bind:open={enhanceDialogOpen}>
-		<DialogContent class="max-w-2xl w-full">
-			<DialogHeader>
-				<DialogTitle>Review AI Enhancement Input</DialogTitle>
-				<DialogDescription>
-					We’ll use this data to improve accuracy. Update anything that looks wrong.
-				</DialogDescription>
-			</DialogHeader>
+<Dialog bind:open={enhanceDialogOpen}>
+	<DialogContent class="max-w-2xl w-full">
+		<DialogHeader>
+			<DialogTitle>Review AI Enhancement Input</DialogTitle>
+			<DialogDescription>
+				We’ll use this data to improve accuracy. Update anything that looks wrong.
+			</DialogDescription>
+		</DialogHeader>
 
-			<div class="grid gap-4 pt-2">
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Title</label>
-					<Input bind:value={enhanceForm.title} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Authors (comma-separated)</label>
-					<Input bind:value={enhanceForm.authors} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Categories (comma-separated)</label>
-					<Input bind:value={enhanceForm.categories} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Published Year (YYYY)</label>
-					<Input bind:value={enhanceForm.published_date} placeholder="e.g. 1997" />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Publisher</label>
-					<Input bind:value={enhanceForm.publisher} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">ISBN-13</label>
-					<Input bind:value={enhanceForm.isbn_13} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">ISBN-10</label>
-					<Input bind:value={enhanceForm.isbn_10} />
-				</div>
-
-				<div class="grid gap-2">
-					<label class="text-sm font-medium">Description</label>
-					<Textarea bind:value={enhanceForm.description} rows={6} />
-				</div>
+		<div class="grid gap-4 pt-2">
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Title</label>
+				<Input bind:value={enhanceForm.title} />
 			</div>
 
-			<DialogFooter class="mt-4">
-				<Button variant="outline" onclick={() => (enhanceDialogOpen = false)} disabled={isEnhancing}>
-					Cancel
-				</Button>
-				<Button onclick={handleEnhance} disabled={isEnhancing}>
-					{#if isEnhancing}
-						<span class="flex items-center gap-1.5">
-							<Loader2 class="h-4 w-4 animate-spin" />
-							Enhancing...
-						</span>
-					{:else}
-						Run Enhancement
-					{/if}
-				</Button>
-			</DialogFooter>
-		</DialogContent>
-	</Dialog>
-{/if}
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Authors (comma-separated)</label>
+				<Input bind:value={enhanceForm.authors} />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Categories (comma-separated)</label>
+				<Input bind:value={enhanceForm.categories} />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Published Year (YYYY)</label>
+				<Input bind:value={enhanceForm.published_date} placeholder="e.g. 1997" />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Publisher</label>
+				<Input bind:value={enhanceForm.publisher} />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">ISBN-13</label>
+				<Input bind:value={enhanceForm.isbn_13} />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">ISBN-10</label>
+				<Input bind:value={enhanceForm.isbn_10} />
+			</div>
+
+			<div class="grid gap-2">
+				<label class="text-sm font-medium">Description</label>
+				<Textarea bind:value={enhanceForm.description} rows={6} />
+			</div>
+		</div>
+
+		<DialogFooter class="mt-4">
+			<Button variant="outline" onclick={() => (enhanceDialogOpen = false)} disabled={isEnhancing}>
+				Cancel
+			</Button>
+			<Button onclick={handleEnhance} disabled={isEnhancing}>
+				{#if isEnhancing}
+					<span class="flex items-center gap-1.5">
+						<Loader2 class="h-4 w-4 animate-spin" />
+						Enhancing...
+					</span>
+				{:else}
+					Run Enhancement
+				{/if}
+			</Button>
+		</DialogFooter>
+	</DialogContent>
+</Dialog>

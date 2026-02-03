@@ -72,12 +72,6 @@ export async function enhanceBook(
 
     const book = bookData as any
 
-    if (book.ai_enhanced) {
-      return {
-        success: false,
-        error: 'This book has already been AI-enhanced',
-      }
-    }
 
     let baseInput: BookEnhancementInput = {
       title: book.title,
