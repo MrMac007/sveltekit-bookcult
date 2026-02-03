@@ -71,6 +71,7 @@
 
 	let isEnhancing = $state(false);
 	let enhanceDialogOpen = $state(false);
+	let isRefreshing = $state(false);
 
 	let enhanceForm = $state({
 		title: '',
@@ -148,6 +149,32 @@
 			toast.error('An unexpected error occurred. Please try again.');
 		} finally {
 			isEnhancing = false;
+		}
+	}
+
+	async function handleRefreshFromInternet() {
+		if (!book.id || isRefreshing) return;
+		isRefreshing = true;
+		try {
+			const response = await fetch('/api/books/refresh', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ bookId: book.id }),
+				credentials: 'same-origin'
+			});
+			const result = await response.json();
+			if (response.ok && result.success) {
+				toast.success('Book metadata refreshed');
+				await invalidateAll();
+			} else {
+				console.error('Refresh error:', result.error);
+				toast.error(result.error || 'Failed to refresh book');
+			}
+		} catch (error) {
+			console.error('Error refreshing book:', error);
+			toast.error('An unexpected error occurred. Please try again.');
+		} finally {
+			isRefreshing = false;
 		}
 	}
 </script>
@@ -278,25 +305,50 @@
 	<!-- Book Details -->
 	<Card class="mb-6">
 		<CardContent class="space-y-4 pt-6">
-			<div class="flex items-center justify-between">
+			<div class="flex flex-wrap items-center justify-between gap-2">
 				<h3 class="font-semibold">About this book</h3>
-				{#if book.ai_enhanced}
-					<Badge variant="secondary" class="gap-1.5">
-						<Sparkles class="h-3 w-3" />
-						AI Enhanced
-					</Badge>
-				{/if}
-				<Button
-					variant="outline"
-					size="sm"
-					class="gap-1.5"
-					onclick={openEnhanceDialog}
-				>
-					<span class="flex items-center gap-1.5">
-						<Sparkles class="h-3.5 w-3.5" />
-						Enhance with AI
-					</span>
-				</Button>
+				<div class="flex flex-wrap items-center gap-2">
+					{#if book.ai_enhanced}
+						<Badge variant="secondary" class="gap-1.5">
+							<Sparkles class="h-3 w-3" />
+							AI Enhanced
+						</Badge>
+					{/if}
+					<Button
+						variant="outline"
+						size="sm"
+						class="gap-1.5"
+						onclick={handleRefreshFromInternet}
+						disabled={isRefreshing}
+					>
+						<span class="flex items-center gap-1.5">
+							{#if isRefreshing}
+								<Loader2 class="h-3.5 w-3.5 animate-spin" />
+								Refreshing...
+							{:else}
+								<Calendar class="h-3.5 w-3.5" />
+								Refresh from Internet
+							{/if}
+						</span>
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						class="gap-1.5"
+						onclick={openEnhanceDialog}
+						disabled={isEnhancing}
+					>
+						<span class="flex items-center gap-1.5">
+							{#if isEnhancing}
+								<Loader2 class="h-3.5 w-3.5 animate-spin" />
+								Enhancing...
+							{:else}
+								<Sparkles class="h-3.5 w-3.5" />
+								Enhance with AI
+							{/if}
+						</span>
+					</Button>
+				</div>
 			</div>
 
 			{#if book.description}
